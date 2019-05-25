@@ -62,9 +62,16 @@ namespace Interceptor
             if (!packet.Blocked)
             {
                 bool outgoing = client == Server;
-                Task invokeTask = (outgoing ? Outgoing : Incoming)?.Invoke(packet);
-                if (invokeTask != null)
-                    await invokeTask.ConfigureAwait(false);
+                try
+                {
+                    Task invokeTask = (outgoing ? Outgoing : Incoming)?.Invoke(packet);
+                    if (invokeTask != null)
+                        await invokeTask.ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Log exception...
+                }
 
                 Memory<byte> packetBytes = packet.Construct();
                 if (outgoing)

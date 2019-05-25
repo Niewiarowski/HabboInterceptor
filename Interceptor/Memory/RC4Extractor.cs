@@ -68,7 +68,7 @@ namespace Interceptor.Memory
         {
             static string GetCommandLine(Process process)
             {
-                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT CommandLine FROM Win32_Process WHERE ProcessId = " + process.Id))
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(string.Concat("SELECT CommandLine FROM Win32_Process WHERE ProcessId = ", process.Id)))
                 using (ManagementObjectCollection objects = searcher.Get())
                     return objects.Cast<ManagementBaseObject>().SingleOrDefault()?["CommandLine"]?.ToString();
             }
@@ -99,13 +99,13 @@ namespace Interceptor.Memory
             {
                 ulong bytesRead = 0;
                 byte[] page = new byte[Math.Min(memoryPage.RegionSize, 1000000)];
+                Span<byte> realKey = stackalloc byte[256];
+                Span<byte> repeats = stackalloc byte[256];
 
                 do
                 {
                     if (ReadProcessMemory(CurrentHandle, (long)memoryPage.BaseAddress, page, (ulong)page.Length, out IntPtr numBytesRead))
                     {
-                        Span<byte> realKey = stackalloc byte[256];
-                        Span<byte> repeats = stackalloc byte[256];
                         bool validKey = false;
                         for (int i = 0; i < page.Length - 1024; i += 4)
                         {
