@@ -10,9 +10,11 @@ namespace Interceptor.Communication
     {
         public int Length { get; }
         internal int ConstructLength => Length + 6;
-        public short Header { get; }
+        public ushort Header { get; }
         public ReadOnlyMemory<byte> Bytes => _bytes;
         public bool Blocked { get; set; }
+        public string Hash { get; internal set; }
+        public string[] Structure { get; internal set; }
 
         private int _position;
         public int Position
@@ -46,7 +48,7 @@ namespace Interceptor.Communication
                     remainderIndex = -2;
                     return;
                 }
-                Header = BitConverter.ToInt16(headerSlice);
+                Header = BitConverter.ToUInt16(headerSlice);
                 _bytes = bytes.Slice(6 + index, Length).ToArray();
                 if (bytes.Length > index + Length + 6)
                     remainderIndex = index + Length + 6;
@@ -63,13 +65,13 @@ namespace Interceptor.Communication
                 bytes.Slice(0, 2).CopyTo(header);
                 if (BitConverter.IsLittleEndian)
                     header.Reverse();
-                Header = BitConverter.ToInt16(header);
+                Header = BitConverter.ToUInt16(header);
 
                 _bytes = bytes.Slice(2).ToArray();
             }
         }
 
-        public Packet(int length, short header, Span<byte> bytes)
+        public Packet(int length, ushort header, Span<byte> bytes)
         {
             Length = length - 2;
             Header = header;
@@ -145,15 +147,48 @@ namespace Interceptor.Communication
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
+            if (Hash != null)
+                sb.AppendFormat("[{0}]", Hash);
             sb.AppendFormat("{{l:{0}}}{{h:{1}}}: ", Length, Header);
-            Span<byte> payloadSpan = _bytes.Span;
-            for (int i = 0; i < _bytes.Length; i++)
+
+            if (Structure != null)
             {
-                byte value = payloadSpan[i];
-                if (value <= 13)
-                    sb.AppendFormat("[{0}]", value);
-                else
-                    sb.Append((char)value);
+                for (int i = 0; i < Structure.Length; i++)
+                {
+                    string format = "{{{0}:{1}}}";
+                    char type = char.ToLower(Structure[i][0]);
+                    object result = null;
+                    switch (type)
+                    {
+                        case 'i':
+                            result = Read<int>();
+                            break;
+                        case 's':
+                            result = ReadString();
+                            break;
+                        case 'b':
+                            result = Read<bool>();
+                            break;
+                        default:
+                            Console.WriteLine(Structure[i]);
+                            Console.Beep();
+                            break;
+                    }
+
+                    sb.AppendFormat(format, type, result);
+                }
+            }
+            else
+            {
+                Span<byte> payloadSpan = _bytes.Span;
+                for (int i = 0; i < _bytes.Length; i++)
+                {
+                    byte value = payloadSpan[i];
+                    if (value <= 13)
+                        sb.AppendFormat("[{0}]", value);
+                    else
+                        sb.Append((char)value);
+                }
             }
 
             return sb.ToString();

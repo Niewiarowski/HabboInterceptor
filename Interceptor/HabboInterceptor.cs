@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -7,6 +9,7 @@ using System.Threading.Tasks;
 
 using Interceptor.Communication;
 using Interceptor.Encryption;
+using Interceptor.Habbo;
 using Interceptor.Interception;
 using Interceptor.Logging;
 using Interceptor.Memory;
@@ -20,6 +23,8 @@ namespace Interceptor
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
         public LogEvent Log { get; set; }
+        public Dictionary<ushort, PacketInformation> InMessages { get; private set; } = new Dictionary<ushort, PacketInformation>();
+        public Dictionary<ushort, PacketInformation> OutMessages { get; private set; } = new Dictionary<ushort, PacketInformation>();
         public bool Paused { get; set; }
 
         private RC4Key DecipherKey { get; set; }
@@ -34,7 +39,7 @@ namespace Interceptor
 
             if (!HostHelper.TryAddRedirect(ClientIp.ToString(), "game-us.habbo.com"))
             {
-                LogInternal(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
+                LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
                 throw new Exception("Failed to add host redirect.");
             }
             else
@@ -47,7 +52,7 @@ namespace Interceptor
                     Connected += () =>
                     {
                         if (!HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com"))
-                            return LogInternal(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
+                            return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
 
                         return Task.CompletedTask;
                     };
@@ -64,7 +69,7 @@ namespace Interceptor
             base.Stop();
         }
 
-        internal async Task LogInternal(LogMessage message)
+        internal async Task LogInternalAsync(LogMessage message)
         {
             try
             {
@@ -88,9 +93,9 @@ namespace Interceptor
                     if (invokeTask != null)
                         await invokeTask.ConfigureAwait(false);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
-                    await LogInternal(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
+                    await LogInternalAsync(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
                 }
 
                 Memory<byte> packetBytes = packet.Construct();
@@ -98,6 +103,26 @@ namespace Interceptor
                     CipherKey?.Cipher(packetBytes);
                 await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
             }
+        }
+
+        private async Task DisassembleAsync(string production)
+        {
+            string swfUrl = string.Format("http://images.habbo.com/gordon/{0}/Habbo.swf", production);
+            using (WebClient wc = new WebClient())
+            using (Stream stream = await wc.OpenReadTaskAsync(swfUrl))
+            using (HGame game = new HGame(stream))
+            {
+                await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
+                game.Disassemble();
+                game.GenerateMessageHashes();
+
+                foreach ((ushort id, MessageItem message) in game.InMessages)
+                    InMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
+                foreach ((ushort id, MessageItem message) in game.OutMessages)
+                    OutMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
+            }
+
+            GC.Collect();
         }
 
         protected override async Task InterceptAsync(TcpClient client, TcpClient server)
@@ -131,7 +156,7 @@ namespace Interceptor
 
                             if (RC4Extractor.TryExtractKey(out RC4Key key))
                             {
-                                await LogInternal(new LogMessage(LogSeverity.Info, string.Format("RC4: {0}", key)));
+                                await LogInternalAsync(new LogMessage(LogSeverity.Info, string.Format("RC4: {0}", key)));
                                 Memory<byte> decipherBuffer = new byte[decipherBytesRead];
 
                                 for (int i = 0; i < 256; i++)
@@ -161,7 +186,7 @@ namespace Interceptor
                                     }
                                 }
                             }
-                            else await LogInternal(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
+                            else await LogInternalAsync(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
 
                             exit:
                             Paused = false;
@@ -188,15 +213,30 @@ namespace Interceptor
                         DecipherKey?.Cipher(packetBytes);
 
                     Packet packet = new Packet(length, packetBytes);
+                    Dictionary<ushort, PacketInformation> messages = outgoing ? OutMessages : InMessages;
+                    if (messages != null && messages.TryGetValue(packet.Header, out PacketInformation packetInfo))
+                    {
+                        packet.Hash = packetInfo.Hash;
+                        packet.Structure = packetInfo.Structure;
+                    }
+
                     if (outgoing)
+                    {
+                        if (outgoingCount == 1)
+                        {
+                            await DisassembleAsync(packet.ReadString());
+                            packet.Position = 0;
+                        }
+
                         await SendToServerAsync(packet);
+                    }
                     else
                         await SendToClientAsync(packet);
                 }
             }
             catch (Exception e)
             {
-                await LogInternal(new LogMessage(LogSeverity.Error, "An exception was thrown during packet interception", e));
+                await LogInternalAsync(new LogMessage(LogSeverity.Error, "An exception was thrown during packet interception", e));
             }
         }
     }
