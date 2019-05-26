@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 
 using Interceptor;
-using Interceptor.Habbo;
 
 namespace InterceptorTest
 {
@@ -10,9 +9,7 @@ namespace InterceptorTest
     {
         static async Task Main(string[] args)
         {
-            
             HabboInterceptor interceptor = new HabboInterceptor();
-            interceptor.Start();
 
             interceptor.Connected += () => { Console.WriteLine("Connected..."); return Task.CompletedTask; };
             interceptor.Incoming += packet =>
@@ -29,6 +26,7 @@ namespace InterceptorTest
             };
             interceptor.Log += message => { Console.WriteLine(message); return Task.CompletedTask; };
 
+            interceptor.Start();
             await Task.Delay(-1);
         }
     }
