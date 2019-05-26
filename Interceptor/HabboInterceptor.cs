@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Interceptor.Communication;
 using Interceptor.Encryption;
 using Interceptor.Interception;
+using Interceptor.Logging;
 using Interceptor.Memory;
 
 namespace Interceptor
@@ -15,8 +16,10 @@ namespace Interceptor
     public class HabboInterceptor : Interception.Interceptor
     {
         public delegate Task PacketEvent(Packet packet);
+        public delegate Task LogEvent(LogMessage message);
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
+        public LogEvent Log { get; set; }
         public bool Paused { get; set; }
 
         private RC4Key DecipherKey { get; set; }
@@ -28,30 +31,47 @@ namespace Interceptor
 
         public override void Start()
         {
+
             if (!HostHelper.TryAddRedirect(ClientIp.ToString(), "game-us.habbo.com"))
-                throw new Exception("Failed to add host redirect.");
-
-            Interception.Interceptor interceptor = new Interception.Interceptor(ClientIp, ClientPort, ServerIp, ServerPort);
-            interceptor.Start();
-            interceptor.Connected += () =>
             {
-                Connected += () =>
-                {
-                    if (!HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com"))
-                        Console.WriteLine("Failed to remove redirect!");
+                LogInternal(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
+                throw new Exception("Failed to add host redirect.");
+            }
+            else
+            {
 
+                Interception.Interceptor interceptor = new Interception.Interceptor(ClientIp, ClientPort, ServerIp, ServerPort);
+                interceptor.Start();
+                interceptor.Connected += () =>
+                {
+                    Connected += () =>
+                    {
+                        if (!HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com"))
+                            return LogInternal(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
+
+                        return Task.CompletedTask;
+                    };
+
+                    base.Start();
                     return Task.CompletedTask;
                 };
-
-                base.Start();
-                return Task.CompletedTask;
-            };
+            }
         }
 
         public override void Stop()
         {
             HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com");
             base.Stop();
+        }
+
+        internal async Task LogInternal(LogMessage message)
+        {
+            try
+            {
+                if (Log != null)
+                    await Log.Invoke(message).ConfigureAwait(false);
+            }
+            catch { }
         }
 
         public Task SendToServerAsync(Packet packet) => SendInternalAsync(Server, packet);
@@ -68,9 +88,9 @@ namespace Interceptor
                     if (invokeTask != null)
                         await invokeTask.ConfigureAwait(false);
                 }
-                catch
+                catch(Exception e)
                 {
-                    // Log exception...
+                    await LogInternal(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
                 }
 
                 Memory<byte> packetBytes = packet.Construct();
@@ -88,87 +108,95 @@ namespace Interceptor
             Memory<byte> lengthBuffer = new byte[4];
 
             var clientStream = client.GetStream();
-            while (true)
+            try
             {
-                if (Paused)
+                while (true)
                 {
-                    Thread.Sleep(10);
-                    continue;
-                }
-
-                if (outgoing && CipherKey == null)
-                {
-                    if (outgoingCount != 5)
-                        outgoingCount++;
-
-                    if (outgoingCount == 4)
+                    if (Paused)
                     {
-                        Paused = true;
-                        await Task.Delay(1000); // Wait for client to finish sending the first 3 packets
-                        int decipherBytesRead = await clientStream.ReadAsync(buffer);
+                        Thread.Sleep(10);
+                        continue;
+                    }
 
-                        if (RC4Extractor.TryExtractKey(out RC4Key key))
+                    if (outgoing && CipherKey == null)
+                    {
+                        if (outgoingCount != 5)
+                            outgoingCount++;
+
+                        if (outgoingCount == 4)
                         {
-                            Memory<byte> decipherBuffer = new byte[decipherBytesRead];
+                            Paused = true;
+                            await Task.Delay(1000); // Wait for client to finish sending the first 3 packets
+                            int decipherBytesRead = await clientStream.ReadAsync(buffer);
 
-                            for (int i = 0; i < 256; i++)
+                            if (RC4Extractor.TryExtractKey(out RC4Key key))
                             {
-                                for (int j = 0; j < 256; j++)
+                                await LogInternal(new LogMessage(LogSeverity.Info, string.Format("RC4: {0}", key)));
+                                Memory<byte> decipherBuffer = new byte[decipherBytesRead];
+
+                                for (int i = 0; i < 256; i++)
                                 {
-                                    RC4Key tempKey = key.Copy(i, j);
-                                    tempKey.Reverse(decipherBytesRead);
-                                    if (tempKey.X == 0 && tempKey.Y == 0)
+                                    for (int j = 0; j < 256; j++)
                                     {
-                                        buffer.Slice(0, decipherBytesRead).CopyTo(decipherBuffer);
-                                        RC4Key possibleDecipherKey = tempKey.Copy();
-                                        possibleDecipherKey.Cipher(decipherBuffer);
+                                        RC4Key tempKey = key.Copy(i, j);
+                                        tempKey.Reverse(decipherBytesRead);
+                                        if (tempKey.X == 0 && tempKey.Y == 0)
+                                        {
+                                            buffer.Slice(0, decipherBytesRead).CopyTo(decipherBuffer);
+                                            RC4Key possibleDecipherKey = tempKey.Copy();
+                                            possibleDecipherKey.Cipher(decipherBuffer);
 
-                                        Packet[] packets = Packet.Parse(decipherBuffer);
-                                        if (packets.Length == 0)
-                                            continue;
+                                            Packet[] packets = Packet.Parse(decipherBuffer);
+                                            if (packets.Length == 0)
+                                                continue;
 
-                                        CipherKey = tempKey;
-                                        DecipherKey = possibleDecipherKey;
+                                            CipherKey = tempKey;
+                                            DecipherKey = possibleDecipherKey;
 
-                                        for (int x = 0; x < packets.Length; x++)
-                                            await SendToServerAsync(packets[x]);
+                                            for (int x = 0; x < packets.Length; x++)
+                                                await SendToServerAsync(packets[x]);
 
-                                        goto exit;
+                                            goto exit;
+                                        }
                                     }
                                 }
                             }
+                            else await LogInternal(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
+
+                            exit:
+                            Paused = false;
                         }
-                        else Console.WriteLine("Could not find RC4 key.");
-
-                        exit:
-                        Paused = false;
                     }
+
+                    int bytesRead = 0;
+                    do bytesRead += await clientStream.ReadAsync(lengthBuffer.Slice(bytesRead));
+                    while (bytesRead != lengthBuffer.Length);
+
+                    if (outgoing)
+                        DecipherKey?.Cipher(lengthBuffer);
+
+                    if (BitConverter.IsLittleEndian)
+                        lengthBuffer.Span.Reverse();
+                    int length = BitConverter.ToInt32(lengthBuffer.Span);
+
+                    Memory<byte> packetBytes = length > buffer.Length ? new byte[length] : buffer.Slice(0, length);
+                    bytesRead = 0;
+                    do bytesRead += await clientStream.ReadAsync(packetBytes.Slice(bytesRead));
+                    while (bytesRead < length);
+
+                    if (outgoing)
+                        DecipherKey?.Cipher(packetBytes);
+
+                    Packet packet = new Packet(length, packetBytes);
+                    if (outgoing)
+                        await SendToServerAsync(packet);
+                    else
+                        await SendToClientAsync(packet);
                 }
-
-                int bytesRead = 0;
-                do bytesRead += await clientStream.ReadAsync(lengthBuffer.Slice(bytesRead));
-                while (bytesRead != lengthBuffer.Length);
-
-                if (outgoing)
-                    DecipherKey?.Cipher(lengthBuffer);
-
-                if (BitConverter.IsLittleEndian)
-                    lengthBuffer.Span.Reverse();
-                int length = BitConverter.ToInt32(lengthBuffer.Span);
-
-                Memory<byte> packetBytes = length > buffer.Length ? new byte[length] : buffer.Slice(0, length);
-                bytesRead = 0;
-                do bytesRead += await clientStream.ReadAsync(packetBytes.Slice(bytesRead));
-                while (bytesRead < length);
-
-                if (outgoing)
-                    DecipherKey?.Cipher(packetBytes);
-
-                Packet packet = new Packet(length, packetBytes);
-                if (outgoing)
-                    await SendToServerAsync(packet);
-                else
-                    await SendToClientAsync(packet);
+            }
+            catch (Exception e)
+            {
+                await LogInternal(new LogMessage(LogSeverity.Error, "An exception was thrown during packet interception", e));
             }
         }
     }
