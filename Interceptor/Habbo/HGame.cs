@@ -248,36 +248,36 @@ namespace Interceptor.Habbo
                 {
                     default: continue;
                     case OPCode.NewFunction:
-                    {
-                        var newFunction = (NewFunctionIns)instruction;
-                        references.AddRange(FindMessageReferences(fromClass, fromContainer, newFunction.Method));
-                        continue;
-                    }
+                        {
+                            var newFunction = (NewFunctionIns)instruction;
+                            references.AddRange(FindMessageReferences(fromClass, fromContainer, newFunction.Method));
+                            continue;
+                        }
                     case OPCode.GetProperty:
-                    {
-                        var getProperty = (GetPropertyIns)instruction;
-                        nameStack.Push(getProperty.PropertyName);
-                        continue;
-                    }
+                        {
+                            var getProperty = (GetPropertyIns)instruction;
+                            nameStack.Push(getProperty.PropertyName);
+                            continue;
+                        }
                     case OPCode.GetLex:
-                    {
-                        var getLex = (GetLexIns)instruction;
-                        container = abc.GetClass(getLex.TypeName.Name);
-                        continue;
-                    }
+                        {
+                            var getLex = (GetLexIns)instruction;
+                            container = abc.GetClass(getLex.TypeName.Name);
+                            continue;
+                        }
                     case OPCode.GetLocal_0:
-                    {
-                        container = fromContainer;
-                        continue;
-                    }
+                        {
+                            container = fromContainer;
+                            continue;
+                        }
                     case OPCode.ConstructProp:
-                    {
-                        var constructProp = (ConstructPropIns)instruction;
+                        {
+                            var constructProp = (ConstructPropIns)instruction;
 
-                        extraNamePopCount = constructProp.ArgCount;
-                        nameStack.Push(constructProp.PropertyName);
-                        break;
-                    }
+                            extraNamePopCount = constructProp.ArgCount;
+                            nameStack.Push(constructProp.PropertyName);
+                            break;
+                        }
                 }
 
                 ASMultiname messageQName = nameStack.Pop();
@@ -401,52 +401,6 @@ namespace Interceptor.Habbo
                 }
             }
         }
-        private void SimplifySendCode(ABCFile abc, ASCode sendCode)
-        {
-            bool isTrimming = true;
-            for (int i = 0; i < sendCode.Count; i++)
-            {
-                ASInstruction instruction = sendCode[i];
-                if (!isTrimming && Local.IsValid(instruction.OP))
-                {
-                    var local = (Local)instruction;
-                    int newRegister = (local.Register - 1);
-                    if (newRegister < 1) continue;
-
-                    ASInstruction replacement = null;
-                    if (Local.IsGetLocal(local.OP))
-                    {
-                        replacement = new GetLocalIns(newRegister);
-                    }
-                    else if (Local.IsSetLocal(local.OP))
-                    {
-                        replacement = new SetLocalIns(newRegister);
-                    }
-                    sendCode[i] = replacement;
-                }
-                else if (isTrimming)
-                {
-                    if (instruction.OP != OPCode.CallProperty) continue;
-
-                    var callProperty = (CallPropertyIns)instruction;
-                    if (callProperty.PropertyName.Name != "encode") continue;
-
-                    sendCode.RemoveRange(0, i - 4);
-                    int idNameIndex = abc.Pool.AddConstant("id");
-                    int valuesNameIndex = abc.Pool.AddConstant("values");
-
-                    i = 0;
-                    isTrimming = false;
-                    sendCode.InsertRange(0, new ASInstruction[]
-                    {
-                        new GetLocal0Ins(),
-                        new PushScopeIns(),
-                        new DebugIns(abc, idNameIndex, 1, 0),
-                        new DebugIns(abc, valuesNameIndex, 1, 1)
-                    });
-                }
-            }
-        }
 
         public override void Disassemble(Action<TagItem> callback)
         {
@@ -544,21 +498,21 @@ namespace Interceptor.Habbo
             {
                 case TraitKind.Slot:
                 case TraitKind.Constant:
-                {
-                    Write(trait.Type);
-                    if (trait.Value != null)
                     {
-                        Write(trait.ValueKind, trait.Value);
+                        Write(trait.Type);
+                        if (trait.Value != null)
+                        {
+                            Write(trait.ValueKind, trait.Value);
+                        }
+                        break;
                     }
-                    break;
-                }
                 case TraitKind.Method:
                 case TraitKind.Getter:
                 case TraitKind.Setter:
-                {
-                    Write(trait.Method);
-                    break;
-                }
+                    {
+                        Write(trait.Method);
+                        break;
+                    }
             }
         }
         public void Write(ASMethod method)
@@ -617,26 +571,26 @@ namespace Interceptor.Habbo
             switch (kind)
             {
                 case ConstantKind.Double:
-                Write((double)value);
-                break;
+                    Write((double)value);
+                    break;
                 case ConstantKind.Integer:
-                Write((int)value);
-                break;
+                    Write((int)value);
+                    break;
                 case ConstantKind.UInteger:
-                Write((uint)value);
-                break;
+                    Write((uint)value);
+                    break;
                 case ConstantKind.String:
-                Write((string)value);
-                break;
+                    Write((string)value);
+                    break;
                 case ConstantKind.Null:
-                Write("null");
-                break;
+                    Write("null");
+                    break;
                 case ConstantKind.True:
-                Write(true);
-                break;
+                    Write(true);
+                    break;
                 case ConstantKind.False:
-                Write(false);
-                break;
+                    Write(false);
+                    break;
             }
         }
         public void Write(ASContainer container, bool includeTraits)
@@ -702,7 +656,7 @@ namespace Interceptor.Habbo
 
         public ASClass Class { get; }
         public ASClass Parser { get; }
-        public string[] Structure { get; }
+        public PacketValue[] Structure { get; }
         public List<ushort> SharedIds { get; }
         public List<MessageReference> References { get; }
 
@@ -852,12 +806,12 @@ namespace Interceptor.Habbo
         }
 
         #region Structure Extraction
-        private string[] GetIncomingStructure(ASClass @class)
+        private PacketValue[] GetIncomingStructure(ASClass @class)
         {
             ASMethod parseMethod = @class.Instance.GetMethod("parse", "Boolean", 1);
             return GetIncomingStructure(@class.Instance, parseMethod);
         }
-        private string[] GetIncomingStructure(ASInstance instance, ASMethod method)
+        private PacketValue[] GetIncomingStructure(ASInstance instance, ASMethod method)
         {
             if (method.Body.Exceptions.Count > 0) return null;
 
@@ -865,7 +819,7 @@ namespace Interceptor.Habbo
             if (code.JumpExits.Count > 0 || code.SwitchExits.Count > 0) return null;
 
             ABCFile abc = method.GetABC();
-            var structure = new List<string>();
+            var structure = new List<PacketValue>();
             for (int i = 0; i < code.Count; i++)
             {
                 ASInstruction instruction = code[i];
@@ -875,112 +829,112 @@ namespace Interceptor.Habbo
                 switch (next.OP)
                 {
                     case OPCode.CallProperty:
-                    {
-                        var callProperty = (CallPropertyIns)next;
-                        if (callProperty.ArgCount > 0)
                         {
-                            ASMultiname propertyName = null;
-                            ASInstruction previous = code[i - 2];
-
-                            switch (previous.OP)
+                            var callProperty = (CallPropertyIns)next;
+                            if (callProperty.ArgCount > 0)
                             {
-                                case OPCode.GetLex:
+                                ASMultiname propertyName = null;
+                                ASInstruction previous = code[i - 2];
+
+                                switch (previous.OP)
                                 {
-                                    var getLex = (GetLexIns)previous;
-                                    propertyName = getLex.TypeName;
-                                    break;
+                                    case OPCode.GetLex:
+                                        {
+                                            var getLex = (GetLexIns)previous;
+                                            propertyName = getLex.TypeName;
+                                            break;
+                                        }
+
+                                    case OPCode.ConstructProp:
+                                        {
+                                            var constructProp = (ConstructPropIns)previous;
+                                            propertyName = constructProp.PropertyName;
+                                            break;
+                                        }
+
+                                    case OPCode.GetLocal_0:
+                                        {
+                                            propertyName = instance.QName;
+                                            break;
+                                        }
                                 }
 
-                                case OPCode.ConstructProp:
+                                ASInstance innerInstance = abc.GetInstance(propertyName.Name);
+                                ASMethod innerMethod = innerInstance.GetMethods(callProperty.PropertyName.Name).FirstOrDefault(m => m.Parameters.Count == callProperty.ArgCount);
+                                if (innerMethod == null)
                                 {
-                                    var constructProp = (ConstructPropIns)previous;
-                                    propertyName = constructProp.PropertyName;
-                                    break;
+                                    ASClass innerClass = abc.GetClass(propertyName.Name);
+                                    innerMethod = innerClass.GetMethods(callProperty.PropertyName.Name).FirstOrDefault(m => m.Parameters.Count == callProperty.ArgCount);
                                 }
 
-                                case OPCode.GetLocal_0:
+                                PacketValue[] innerStructure = GetIncomingStructure(innerInstance, innerMethod);
+                                if (innerStructure != null)
                                 {
-                                    propertyName = instance.QName;
-                                    break;
+                                    structure.AddRange(innerStructure);
                                 }
+                                else return null;
                             }
-
-                            ASInstance innerInstance = abc.GetInstance(propertyName.Name);
-                            ASMethod innerMethod = innerInstance.GetMethods(callProperty.PropertyName.Name).FirstOrDefault(m => m.Parameters.Count == callProperty.ArgCount);
-                            if (innerMethod == null)
+                            else
                             {
-                                ASClass innerClass = abc.GetClass(propertyName.Name);
-                                innerMethod = innerClass.GetMethods(callProperty.PropertyName.Name).FirstOrDefault(m => m.Parameters.Count == callProperty.ArgCount);
-                                }
+                                structure.Add(GetReadReturnTypeName(callProperty.PropertyName));
+                            }
+                            break;
+                        }
 
-                            string[] innerStructure = GetIncomingStructure(innerInstance, innerMethod);
+                    case OPCode.ConstructProp:
+                        {
+                            var constructProp = (ConstructPropIns)next;
+                            ASInstance innerInstance = abc.GetInstance(constructProp.PropertyName.Name);
+
+                            PacketValue[] innerStructure = GetIncomingStructure(innerInstance, innerInstance.Constructor);
                             if (innerStructure != null)
                             {
                                 structure.AddRange(innerStructure);
                             }
                             else return null;
+                            break;
                         }
-                        else
-                        {
-                            structure.Add(GetReadReturnTypeName(callProperty.PropertyName));
-                        }
-                        break;
-                    }
-
-                    case OPCode.ConstructProp:
-                    {
-                        var constructProp = (ConstructPropIns)next;
-                        ASInstance innerInstance = abc.GetInstance(constructProp.PropertyName.Name);
-
-                        string[] innerStructure = GetIncomingStructure(innerInstance, innerInstance.Constructor);
-                        if (innerStructure != null)
-                        {
-                            structure.AddRange(innerStructure);
-                        }
-                        else return null;
-                        break;
-                    }
 
                     case OPCode.ConstructSuper:
-                    {
-                        var constructSuper = (ConstructSuperIns)next;
-                        ASInstance superInstance = abc.GetInstance(instance.Super);
+                        {
+                            var constructSuper = (ConstructSuperIns)next;
+                            ASInstance superInstance = abc.GetInstance(instance.Super);
                             //ASInstance superInstance = abc.Classes.FirstOrDefault(c => c.)
 
-                        string[] innerStructure = GetIncomingStructure(superInstance, superInstance.Constructor);
-                        if (innerStructure != null)
-                        {
-                            structure.AddRange(innerStructure);
+                            PacketValue[] innerStructure = GetIncomingStructure(superInstance, superInstance.Constructor);
+                            if (innerStructure != null)
+                            {
+                                structure.AddRange(innerStructure);
+                            }
+                            else return null;
+                            break;
                         }
-                        else return null;
-                        break;
-                    }
 
                     case OPCode.CallSuper:
-                    {
-                        var callSuper = (CallSuperIns)next;
-                        ASInstance superInstance = abc.GetInstance(instance.Super.Name);
+                        {
+                            var callSuper = (CallSuperIns)next;
+                            ASInstance superInstance = abc.GetInstance(instance.Super.Name);
 
                             ASMethod superMethod = superInstance.GetMethods(callSuper.MethodName.Name).FirstOrDefault(m => m.Parameters.Count == callSuper.ArgCount);
-                        string[] innerStructure = GetIncomingStructure(superInstance, superMethod);
-                        if (innerStructure != null)
-                        {
-                            structure.AddRange(innerStructure);
+                            PacketValue[] innerStructure = GetIncomingStructure(superInstance, superMethod);
+                            if (innerStructure != null)
+                            {
+                                structure.AddRange(innerStructure);
+                            }
+                            else return null;
+                            break;
                         }
-                        else return null;
-                        break;
-                    }
 
                     case OPCode.CallPropVoid:
-                    {
-                        var callPropVoid = (CallPropVoidIns)next;
-                        if (callPropVoid.ArgCount == 0)
                         {
-                            structure.Add(GetReadReturnTypeName(callPropVoid.PropertyName));
+                            var callPropVoid = (CallPropVoidIns)next;
+                            if (callPropVoid.ArgCount == 0)
+                            {
+                                structure.Add(GetReadReturnTypeName(callPropVoid.PropertyName));
+                            }
+                            else return null;
+                            break;
                         }
-                        else return null;
-                        break;
-                    }
 
                     default: return null;
                 }
@@ -988,7 +942,7 @@ namespace Interceptor.Habbo
             return structure.ToArray();
         }
 
-        private string[] GetOutgoingStructure(ASClass @class)
+        private PacketValue[] GetOutgoingStructure(ASClass @class)
         {
             ASMethod getArrayMethod = @class.Instance.GetMethod(null, "Array", 0);
             if (getArrayMethod == null)
@@ -1049,9 +1003,9 @@ namespace Interceptor.Habbo
             }
             return null;
         }
-        private string[] GetOutgoingStructure(ASCode code, Local getLocal)
+        private PacketValue[] GetOutgoingStructure(ASCode code, Local getLocal)
         {
-            var structure = new List<string>();
+            var structure = new List<PacketValue>();
             for (int i = 0; i < code.Count; i++)
             {
                 ASInstruction instruction = code[i];
@@ -1087,14 +1041,32 @@ namespace Interceptor.Habbo
                         if (TryGetTraitTypeName(classToCheck, propertyName, out propertyTypeName) ||
                             TryGetTraitTypeName(classToCheck.Instance, propertyName, out propertyTypeName))
                         {
-                            structure.Add(propertyTypeName);
+                            structure.Add(ToPacketValue(propertyTypeName));
                         }
                     }
                 }
             }
             return structure.ToArray();
         }
-        private string[] GetOutgoingStructure(ASClass @class, ASMultiname propertyName)
+
+        private PacketValue ToPacketValue(string name)
+        {
+            switch (name)
+            {
+                case "String":
+                    return PacketValue.String;
+                case "int":
+                    return PacketValue.Int;
+                case "Boolean":
+                    return PacketValue.Boolean;
+                case "Array":
+                    return PacketValue.Array;
+                default:
+                    return PacketValue.Unknown;
+            }
+        }
+
+        private PacketValue[] GetOutgoingStructure(ASClass @class, ASMultiname propertyName)
         {
             ASMethod constructor = @class.Instance.Constructor;
             if (constructor.Body.Exceptions.Count > 0) return null;
@@ -1106,7 +1078,7 @@ namespace Interceptor.Habbo
                 return null;
             }
 
-            var structure = new List<string>();
+            var structure = new List<PacketValue>();
             var pushedLocals = new Dictionary<int, int>();
             for (int i = 0; i < code.Count; i++)
             {
@@ -1117,7 +1089,7 @@ namespace Interceptor.Habbo
                     var newArray = (NewArrayIns)instruction;
                     if (newArray.ArgCount > 0)
                     {
-                        var structArray = new string[newArray.ArgCount];
+                        var structArray = new PacketValue[newArray.ArgCount];
                         for (int j = i - 1, length = newArray.ArgCount; j >= 0; j--)
                         {
                             ASInstruction previous = code[j];
@@ -1126,7 +1098,7 @@ namespace Interceptor.Habbo
                             {
                                 var local = (Local)previous;
                                 ASParameter parameter = constructor.Parameters[local.Register - 1];
-                                structArray[--length] = parameter.Type.Name;
+                                structArray[--length] = ToPacketValue(parameter.Type.Name);
                             }
                             if (length == 0)
                             {
@@ -1162,7 +1134,7 @@ namespace Interceptor.Habbo
 
                     var local = (Local)next;
                     ASParameter parameter = constructor.Parameters[local.Register - 1];
-                    structure.Add(parameter.Type.Name);
+                    structure.Add(ToPacketValue(parameter.Type.Name));
                 }
                 else
                 {
@@ -1196,23 +1168,23 @@ namespace Interceptor.Habbo
                     if (TryGetTraitTypeName(classToCheck, propertyName, out propertyTypeName) ||
                         TryGetTraitTypeName(classToCheck?.Instance, propertyName, out propertyTypeName))
                     {
-                        structure.Add(propertyTypeName);
+                        structure.Add(ToPacketValue(propertyTypeName));
                     }
                 }
             }
-            if (structure.Contains("Array"))
+            if (structure.Contains(PacketValue.Array))
             {
                 // External array... impossible to check what value types are contained in this.
                 return null;
             }
             return structure.ToArray();
         }
-        private string[] GetOutgoingStructure(ASCode code, ASInstruction beforeReturn, int length)
+        private PacketValue[] GetOutgoingStructure(ASCode code, ASInstruction beforeReturn, int length)
         {
             var getLocalEndIndex = -1;
             int pushingEndIndex = code.IndexOf(beforeReturn);
 
-            var structure = new string[length];
+            var structure = new PacketValue[length];
             ASInstance instance = Class.Instance;
             var pushedLocals = new Dictionary<int, int>();
             for (int i = pushingEndIndex - 1; i >= 0; i--)
@@ -1235,7 +1207,7 @@ namespace Interceptor.Habbo
                     if (TryGetTraitTypeName(classToCheck, propertyName, out propertyTypeName) ||
                         TryGetTraitTypeName(classToCheck.Instance, propertyName, out propertyTypeName))
                     {
-                        structure[--length] = propertyTypeName;
+                        structure[--length] = ToPacketValue(propertyTypeName);
                     }
                 }
                 else if (Local.IsGetLocal(instruction.OP) &&
@@ -1266,21 +1238,21 @@ namespace Interceptor.Habbo
                         case OPCode.PushInt:
                         case OPCode.PushByte:
                         case OPCode.Convert_i:
-                        structure[structIndex] = "int";
-                        break;
+                            structure[structIndex] = PacketValue.Int;
+                            break;
 
                         case OPCode.Coerce_s:
                         case OPCode.PushString:
-                        structure[structIndex] = "String";
-                        break;
+                            structure[structIndex] = PacketValue.String;
+                            break;
 
                         case OPCode.PushTrue:
                         case OPCode.PushFalse:
-                        structure[structIndex] = "Boolean";
-                        break;
+                            structure[structIndex] = PacketValue.Boolean;
+                            break;
 
                         default:
-                        throw new Exception($"Don't know what this value type is, tell someone about this please.\r\nOP: {beforeSet.OP}");
+                            throw new Exception($"Don't know what this value type is, tell someone about this please.\r\nOP: {beforeSet.OP}");
                     }
                 }
                 if (pushedLocals.Count == 0) break;
@@ -1288,31 +1260,31 @@ namespace Interceptor.Habbo
             return structure;
         }
 
-        private string GetReadReturnTypeName(ASMultiname propertyName)
+        private PacketValue GetReadReturnTypeName(ASMultiname propertyName)
         {
             switch (propertyName.Name)
             {
                 case "readString":
-                return "String";
+                    return PacketValue.String;
 
                 case "readBoolean":
-                return "Boolean";
+                    return PacketValue.Boolean;
 
                 case "readByte":
-                return "Byte";
+                    return PacketValue.Byte;
 
                 case "readDouble":
-                return "Double";
+                    return PacketValue.Double;
 
                 default:
-                {
-                    if (!HGame.IsValidIdentifier(propertyName.Name, true))
                     {
-                        // Most likely: readInt
-                        return "int";
+                        if (!HGame.IsValidIdentifier(propertyName.Name, true))
+                        {
+                            // Most likely: readInt
+                            return PacketValue.Int;
+                        }
+                        return PacketValue.Unknown;
                     }
-                    return null;
-                }
             }
         }
         private string GetStrictReturnTypeName(ASMultiname propertyName)

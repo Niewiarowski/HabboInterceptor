@@ -54,7 +54,7 @@ namespace Interceptor
                         if (!HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com"))
                             return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
 
-                        return Task.CompletedTask;
+                        return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
                     };
 
                     base.Start();

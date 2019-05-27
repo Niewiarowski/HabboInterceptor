@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Interceptor.Habbo;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -8,13 +9,13 @@ namespace Interceptor.Communication
 {
     public class Packet
     {
-        public int Length { get; }
+        public int Length { get; private set;  }
         internal int ConstructLength => Length + 6;
         public ushort Header { get; }
         public ReadOnlyMemory<byte> Bytes => _bytes;
         public bool Blocked { get; set; }
         public string Hash { get; internal set; }
-        public string[] Structure { get; internal set; }
+        public PacketValue[] Structure { get; internal set; }
 
         private int _position;
         public int Position
@@ -23,7 +24,7 @@ namespace Interceptor.Communication
             set => _position = Math.Clamp(value, 0, _bytes.Length);
         }
 
-        private Memory<byte> _bytes { get; }
+        private Memory<byte> _bytes { get; set; }
 
         public Packet(Memory<byte> bytes) : this(bytes.Span) { }
         public Packet(Span<byte> bytes) : this(bytes, out _, 0) { }
@@ -50,8 +51,8 @@ namespace Interceptor.Communication
                 }
                 Header = BitConverter.ToUInt16(headerSlice);
                 _bytes = bytes.Slice(6 + index, Length).ToArray();
-                if (bytes.Length > index + Length + 6)
-                    remainderIndex = index + Length + 6;
+                if (bytes.Length > index + ConstructLength)
+                    remainderIndex = index + ConstructLength;
             }
         }
 
@@ -108,39 +109,89 @@ namespace Interceptor.Communication
 
         internal Memory<byte> Construct()
         {
-            Memory<byte> finalPacket = new byte[Length + 6];
+            Memory<byte> finalPacket = new byte[ConstructLength];
             ConstructTo(finalPacket.Span);
             return finalPacket;
         }
 
-        public void Read(Span<byte> buffer)
+        public void Read(Span<byte> buffer, int position = -1)
         {
-            if (Position + buffer.Length > _bytes.Length)
+            int index;
+            if (position == -1)
+                index = Position;
+            else
+                index = Math.Clamp(position, 0, _bytes.Length);
+
+            if (index + buffer.Length > _bytes.Length)
                 return;
 
-            _bytes.Span.Slice(Position, buffer.Length).CopyTo(buffer);
-            Position += buffer.Length;
+            _bytes.Span.Slice(index, buffer.Length).CopyTo(buffer);
+
+            if (position == -1)
+                Position += buffer.Length;
         }
 
-        public T Read<T>() where T : struct
+        public T Read<T>(int position = -1) where T : struct
         {
             T result = default;
             Span<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref result, 1));
-            Read(span);
+            Read(span, position);
             if (BitConverter.IsLittleEndian && (result is int || result is short || result is long))
                 span.Reverse();
 
             return result;
         }
 
-        public string ReadString()
+        public void Write<T>(T value, int position = -1) where T : struct
         {
-            short length = Read<short>();
-            if (Position + length > _bytes.Length)
+            Span<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref value, 1));
+            if (BitConverter.IsLittleEndian && (value is int || value is short || value is long))
+                span.Reverse();
+            Write(span, position);
+        }
+
+        public void Write(Span<byte> buffer, int position = -1)
+        {
+            int index;
+            if (position == -1)
+                index = Position;
+            else
+                index = Math.Clamp(position, 0, _bytes.Length);
+
+            int endIndex = index + buffer.Length;
+            bool overwrites = endIndex > _bytes.Length;
+            if (overwrites)
+            {
+                int newBytesCount = endIndex - _bytes.Length;
+                Memory<byte> newBytes = new byte[_bytes.Length + newBytesCount];
+                _bytes.CopyTo(newBytes);
+                buffer.CopyTo(newBytes.Span.Slice(index, buffer.Length));
+                _bytes = newBytes;
+                Length += newBytesCount;
+            }
+            else buffer.CopyTo(_bytes.Span.Slice(index, buffer.Length));
+
+            if (position == -1)
+                Position += buffer.Length;
+        }
+
+        public string ReadString(int position = -1)
+        {
+            int index;
+            if (position == -1)
+                index = Position;
+            else
+                index = Math.Clamp(position, 0, _bytes.Length);
+
+            short length = Read<short>(position);
+            if (index + length + 2 > _bytes.Length)
                 return null;
 
-            string result = Encoding.ASCII.GetString(_bytes.Span.Slice(Position, length));
-            Position += length;
+            string result = Encoding.ASCII.GetString(_bytes.Span.Slice(index + 2, length));
+
+            if (position == -1)
+                Position += length;
+
             return result;
         }
 
@@ -151,37 +202,47 @@ namespace Interceptor.Communication
                 sb.AppendFormat("[{0}]", Hash);
             sb.AppendFormat("{{l:{0}}}{{h:{1}}}: ", Length, Header);
 
+            int oldPosition = Position;
+            Position = 0;
             if (Structure != null)
             {
                 for (int i = 0; i < Structure.Length; i++)
                 {
-                    string format = "{{{0}:{1}}}";
-                    char type = char.ToLower(Structure[i][0]);
+                    string format = "{{{0}}}";
+
                     object result = null;
-                    switch (type)
+                    switch (Structure[i])
                     {
-                        case 'i':
+                        case PacketValue.Short:
+                            result = Read<short>();
+                            break;
+                        case PacketValue.Int:
                             result = Read<int>();
                             break;
-                        case 's':
-                            result = ReadString();
-                            break;
-                        case 'b':
+                        case PacketValue.Boolean:
                             result = Read<bool>();
                             break;
+                        case PacketValue.String:
+                            result = ReadString();
+                            break;
+                        case PacketValue.Byte:
+                            result = Read<byte>();
+                            break;
+                        case PacketValue.Double:
+                            result = Read<double>();
+                            break;
                         default:
-                            Console.WriteLine(Structure[i]);
-                            Console.Beep();
                             break;
                     }
 
-                    sb.AppendFormat(format, type, result);
+                    sb.AppendFormat(format, result);
                 }
             }
-            else
+            
+            if(Structure == null || (Structure != null && Position != _bytes.Length))
             {
                 Span<byte> payloadSpan = _bytes.Span;
-                for (int i = 0; i < _bytes.Length; i++)
+                for (int i = Position; i < _bytes.Length; i++)
                 {
                     byte value = payloadSpan[i];
                     if (value <= 13)
@@ -191,6 +252,7 @@ namespace Interceptor.Communication
                 }
             }
 
+            Position = oldPosition;
             return sb.ToString();
         }
     }
