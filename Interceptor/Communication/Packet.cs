@@ -114,13 +114,11 @@ namespace Interceptor.Communication
             return finalPacket;
         }
 
+        private int GetSafeIndex(int position) => position == -1 ? Position : Math.Clamp(position, 0, _bytes.Length);
+
         public void Read(Span<byte> buffer, int position = -1)
         {
-            int index;
-            if (position == -1)
-                index = Position;
-            else
-                index = Math.Clamp(position, 0, _bytes.Length);
+            int index = GetSafeIndex(position);
 
             if (index + buffer.Length > _bytes.Length)
                 return;
@@ -142,46 +140,9 @@ namespace Interceptor.Communication
             return result;
         }
 
-        public void Write<T>(T value, int position = -1) where T : struct
-        {
-            Span<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref value, 1));
-            if (BitConverter.IsLittleEndian && (value is int || value is short || value is long))
-                span.Reverse();
-            Write(span, position);
-        }
-
-        public void Write(Span<byte> buffer, int position = -1)
-        {
-            int index;
-            if (position == -1)
-                index = Position;
-            else
-                index = Math.Clamp(position, 0, _bytes.Length);
-
-            int endIndex = index + buffer.Length;
-            bool overwrites = endIndex > _bytes.Length;
-            if (overwrites)
-            {
-                int newBytesCount = endIndex - _bytes.Length;
-                Memory<byte> newBytes = new byte[_bytes.Length + newBytesCount];
-                _bytes.CopyTo(newBytes);
-                buffer.CopyTo(newBytes.Span.Slice(index, buffer.Length));
-                _bytes = newBytes;
-                Length += newBytesCount;
-            }
-            else buffer.CopyTo(_bytes.Span.Slice(index, buffer.Length));
-
-            if (position == -1)
-                Position += buffer.Length;
-        }
-
         public string ReadString(int position = -1)
         {
-            int index;
-            if (position == -1)
-                index = Position;
-            else
-                index = Math.Clamp(position, 0, _bytes.Length);
+            int index = GetSafeIndex(position);
 
             short length = Read<short>(position);
             if (index + length + 2 > _bytes.Length)
@@ -193,6 +154,74 @@ namespace Interceptor.Communication
                 Position += length;
 
             return result;
+        }
+
+        public void Write(Span<byte> buffer, int position = -1)
+        {
+            int index = GetSafeIndex(position);
+            int endIndex = index + buffer.Length;
+            bool overwrites = endIndex > _bytes.Length;
+            if (overwrites)
+                Resize(endIndex);
+
+            buffer.CopyTo(_bytes.Span.Slice(index, buffer.Length));
+
+            if (position == -1)
+                Position += buffer.Length;
+        }
+
+        public void Write<T>(T value, int position = -1) where T : struct
+        {
+            Span<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref value, 1));
+            if (BitConverter.IsLittleEndian && (value is int || value is short || value is long))
+                span.Reverse();
+            Write(span, position);
+        }
+
+        public void WriteString(ReadOnlySpan<char> buffer, int position = -1)
+        {
+            int index = GetSafeIndex(position);
+
+            Span<byte> bufferBytes = stackalloc byte[buffer.Length];
+            Encoding.ASCII.GetBytes(buffer, bufferBytes);
+            Write((short)buffer.Length, index);
+            Write(bufferBytes, index + 2);
+
+            if (position == -1)
+                Position += buffer.Length + 2;
+        }
+
+        public void ReplaceString(ReadOnlySpan<char> buffer, int position = -1)
+        {
+            int index = GetSafeIndex(position);
+
+            Resize(index + 2, Read<short>(index), buffer.Length);
+            WriteString(buffer, index);
+
+            if (position == -1)
+                Position += buffer.Length + 2;
+
+        }
+
+        private void Resize(int newLength) => Resize(0, newLength);
+        private void Resize(int index, int oldLength, int newLength)
+        {
+            if (oldLength != newLength)
+            {
+                int resizeIndex = index + oldLength;
+                Resize(resizeIndex, newLength - oldLength);
+            }
+        }
+        private void Resize(int index, int count)
+        {
+            if (count != 0)
+            {
+                Memory<byte> newBytes = new byte[_bytes.Length + count];
+                _bytes.Slice(0, index).CopyTo(newBytes);
+                _bytes.Slice(index).CopyTo(newBytes.Slice(index + count));
+                _bytes = newBytes;
+                Length += count;
+            }
         }
 
         public override string ToString()

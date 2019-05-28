@@ -20,7 +20,7 @@ namespace InterceptorTest
                 Console.WriteLine("<- {0}", packet);
                 return Task.CompletedTask;
             };
-            interceptor.Outgoing += (Packet packet) =>
+            interceptor.Outgoing += packet =>
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("-> {0}", packet);

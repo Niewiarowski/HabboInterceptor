@@ -53,7 +53,11 @@ namespace Interceptor.Interception
             TcpListener listener = new TcpListener(ClientIp, ClientPort);
             listener.Start();
             Client = await listener.AcceptTcpClientAsync();
-            Server = new TcpClient();
+            Client.NoDelay = true;
+            Server = new TcpClient()
+            {
+                NoDelay = true
+            };
             await Server.ConnectAsync(ServerIp, ServerPort);
             listener.Stop();
             Connected?.Invoke();
