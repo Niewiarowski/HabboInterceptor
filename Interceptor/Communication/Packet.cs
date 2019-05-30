@@ -1,10 +1,9 @@
-﻿using Interceptor.Habbo;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+
+using Interceptor.Habbo;
 
 namespace Interceptor.Communication
 {

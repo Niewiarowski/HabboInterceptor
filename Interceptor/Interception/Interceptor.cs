@@ -54,7 +54,7 @@ namespace Interceptor.Interception
             listener.Start();
             Client = await listener.AcceptTcpClientAsync();
             Client.NoDelay = true;
-            Server = new TcpClient
+            Server = new TcpClient()
             {
                 NoDelay = true
             };

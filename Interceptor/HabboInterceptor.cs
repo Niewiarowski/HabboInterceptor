@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 using Interceptor.Communication;
 using Interceptor.Encryption;
@@ -72,12 +69,18 @@ namespace Interceptor
 
         internal async Task LogInternalAsync(LogMessage message)
         {
-            try
+            if (Log != null)
             {
-                if (Log != null)
-                    await Log.Invoke(message).ConfigureAwait(false);
+                Delegate[] delegates = Log.GetInvocationList();
+                for (int i = 0; i < delegates.Length; i++)
+                {
+                    try
+                    {
+                        await ((LogEvent)delegates[i])(message).ConfigureAwait(false);
+                    }
+                    catch { }
+                }
             }
-            catch { }
         }
 
         public Task SendToServerAsync(Packet packet) => SendInternalAsync(Server, packet);
@@ -88,15 +91,21 @@ namespace Interceptor
             if (!packet.Blocked)
             {
                 bool outgoing = client == Server;
-                try
+                PacketEvent packetEvent = (outgoing ? Outgoing : Incoming);
+                if (packetEvent != null)
                 {
-                    Task invokeTask = (outgoing ? Outgoing : Incoming)?.Invoke(packet);
-                    if (invokeTask != null)
-                        await invokeTask.ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    await LogInternalAsync(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
+                    Delegate[] delegates = packetEvent.GetInvocationList();
+                    for (int i = 0; i < delegates.Length; i++)
+                    {
+                        try
+                        {
+                            await ((PacketEvent)delegates[i])(packet).ConfigureAwait(false);
+                        }
+                        catch (Exception e)
+                        {
+                            await LogInternalAsync(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
+                        }
+                    }
                 }
 
                 Memory<byte> packetBytes = packet.Construct();
@@ -110,7 +119,7 @@ namespace Interceptor
         {
             string swfUrl = string.Format("http://images.habbo.com/gordon/{0}/Habbo.swf", production);
             using (WebClient wc = new WebClient())
-            using (Stream stream = await wc.OpenReadTaskAsync(swfUrl))
+            await using (Stream stream = await wc.OpenReadTaskAsync(swfUrl))
             using (HGame game = new HGame(stream))
             {
                 await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
@@ -119,7 +128,7 @@ namespace Interceptor
 
                 foreach ((ushort id, HMessage message) in game.InMessages)
                 {
-                    InMessages.Add(id, new PacketInformation(message.Id, message.Hash, null));
+                    InMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
                     message.Class = null;
                     message.Parser = null;
                     message.References.Clear();
@@ -127,7 +136,7 @@ namespace Interceptor
 
                 foreach ((ushort id, HMessage message) in game.OutMessages)
                 {
-                    OutMessages.Add(id, new PacketInformation(message.Id, message.Hash, null));
+                    OutMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
                     message.Class = null;
                     message.Parser = null;
                     message.References.Clear();
@@ -231,7 +240,7 @@ namespace Interceptor
 
                     Packet packet = new Packet(length, packetBytes);
                     Dictionary<ushort, PacketInformation> messages = outgoing ? OutMessages : InMessages;
-                    if (messages != null && messages.TryGetValue(packet.Header, out PacketInformation packetInfo))
+                    if (messages.TryGetValue(packet.Header, out PacketInformation packetInfo))
                     {
                         packet.Hash = packetInfo.Hash;
                         packet.Structure = packetInfo.Structure;
@@ -240,9 +249,7 @@ namespace Interceptor
                     if (outgoing)
                     {
                         if (outgoingCount == 1)
-                        {
                             await DisassembleAsync(packet.ReadString(0));
-                        }
 
                         await SendToServerAsync(packet);
                     }

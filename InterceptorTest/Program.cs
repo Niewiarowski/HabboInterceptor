@@ -26,7 +26,7 @@ namespace InterceptorTest
                 Console.WriteLine("-> {0}", packet);
                 return Task.CompletedTask;
             };
-            interceptor.Log += message => { Console.WriteLine(message); return Task.CompletedTask; };
+            interceptor.Log += message => { Console.WriteLine(message.ToString()); return Task.CompletedTask; };
 
             Console.WriteLine("Starting...");
             interceptor.Start();

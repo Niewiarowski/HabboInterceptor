@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Interceptor.Habbo
+﻿namespace Interceptor.Habbo
 {
     public enum PacketValue : byte
     {

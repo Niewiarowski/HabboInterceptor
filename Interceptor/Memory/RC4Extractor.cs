@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Management;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
 
 using Interceptor.Encryption;
 
