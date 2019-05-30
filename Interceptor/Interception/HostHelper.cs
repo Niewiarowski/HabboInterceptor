@@ -16,13 +16,13 @@ namespace Interceptor.Interception
 
         // Should make this class use Span<T>
 
-        public static bool TryAddRedirect(string original, string redirect, string comment = "HabboInterceptor")
+        public static bool TryAddRedirect(string original, string redirect)
         {
             try
             {
                 string match = string.Format("{0} {1}", original, redirect);
                 if (!File.ReadAllLines(HostsFilePath).Any(l => l.Contains(match)))
-                    File.AppendAllText(HostsFilePath, string.Format("\r\n{0} {1} #{2}", original, redirect, comment));
+                    File.AppendAllText(HostsFilePath, string.Format("\r\n{0} {1} #{2}", original, redirect, "HabboInterceptor"));
                 return true;
             }
             catch
@@ -31,12 +31,11 @@ namespace Interceptor.Interception
             }
         }
 
-        public static bool TryRemoveRedirect(string original, string redirect)
+        public static bool TryRemoveRedirects()
         {
             try
             {
-                string match = string.Format("{0} {1}", original, redirect);
-                File.WriteAllLines(HostsFilePath, File.ReadAllLines(HostsFilePath).Where(l => !l.Contains(match) && l != string.Empty));
+                File.WriteAllLines(HostsFilePath, File.ReadAllLines(HostsFilePath).Where(l => !l.EndsWith("#HabboInterceptor") && l != string.Empty));
                 return true;
             }
             catch

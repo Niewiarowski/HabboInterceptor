@@ -24,6 +24,7 @@ namespace Interceptor
         public Dictionary<ushort, PacketInformation> InMessages { get; } = new Dictionary<ushort, PacketInformation>();
         public Dictionary<ushort, PacketInformation> OutMessages { get; } = new Dictionary<ushort, PacketInformation>();
         public bool Paused { get; set; }
+        public string Production { get; private set; }
 
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
@@ -34,7 +35,6 @@ namespace Interceptor
 
         public override void Start()
         {
-
             if (!HostHelper.TryAddRedirect(ClientIp.ToString(), "game-us.habbo.com"))
             {
                 LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
@@ -49,7 +49,7 @@ namespace Interceptor
                 {
                     Connected += () =>
                     {
-                        if (!HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com"))
+                        if (!HostHelper.TryRemoveRedirects())
                             return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
 
                         return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
@@ -63,7 +63,7 @@ namespace Interceptor
 
         public override void Stop()
         {
-            HostHelper.TryRemoveRedirect(ClientIp.ToString(), "game-us.habbo.com");
+            HostHelper.TryRemoveRedirects();
             base.Stop();
         }
 
@@ -115,9 +115,9 @@ namespace Interceptor
             }
         }
 
-        private async Task DisassembleAsync(string production)
+        private async Task DisassembleAsync(string clientUrl)
         {
-            string swfUrl = string.Format("http://images.habbo.com/gordon/{0}/Habbo.swf", production);
+            string swfUrl = string.Concat(clientUrl, "Habbo.swf");
             using (WebClient wc = new WebClient())
             await using (Stream stream = await wc.OpenReadTaskAsync(swfUrl))
             using (HGame game = new HGame(stream))
@@ -178,8 +178,16 @@ namespace Interceptor
                             CipherKey = tempKey;
                             DecipherKey = possibleDecipherKey;
 
+                            bool disassembledClient = false;
                             foreach (Packet packet in packets)
+                            {
+                                if (!disassembledClient)
+                                {
+                                    await DisassembleAsync(packet.ReadString(4));
+                                    disassembledClient = true;
+                                }
                                 await SendToServerAsync(packet);
+                            }
 
                             goto exit;
                         }
@@ -249,7 +257,7 @@ namespace Interceptor
                     if (outgoing)
                     {
                         if (outgoingCount == 1)
-                            await DisassembleAsync(packet.ReadString(0));
+                            Production = packet.ReadString(0);
 
                         await SendToServerAsync(packet);
                     }
