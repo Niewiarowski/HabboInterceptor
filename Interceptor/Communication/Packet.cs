@@ -1,6 +1,7 @@
 ﻿using Interceptor.Habbo;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -9,7 +10,7 @@ namespace Interceptor.Communication
 {
     public class Packet
     {
-        public int Length { get; private set;  }
+        public int Length { get; private set; }
         internal int ConstructLength => Length + 6;
         public ushort Header { get; }
         public ReadOnlyMemory<byte> Bytes => _bytes;
@@ -79,16 +80,16 @@ namespace Interceptor.Communication
             _bytes = bytes.ToArray();
         }
 
-        public static Packet[] Parse(Memory<byte> bytes) => Parse(bytes.Span);
-        public static Packet[] Parse(Span<byte> bytes)
+        public static IReadOnlyCollection<Packet> Parse(Memory<byte> bytes) => Parse(bytes.Span);
+        public static IReadOnlyCollection<Packet> Parse(Span<byte> bytes)
         {
             List<Packet> result = new List<Packet>();
             int remainderIndex = 0;
             while (remainderIndex >= 0)
                 result.Add(new Packet(bytes, out remainderIndex, remainderIndex));
 
-            if (remainderIndex == -2) return new Packet[0];
-            return result.ToArray();
+            if (remainderIndex == -2) return Array.Empty<Packet>();
+            return result.AsReadOnly();
         }
 
         internal void ConstructTo(Span<byte> finalPacket)
@@ -200,7 +201,6 @@ namespace Interceptor.Communication
 
             if (position == -1)
                 Position += buffer.Length + 2;
-
         }
 
         private void Resize(int newLength) => Resize(0, newLength);
@@ -228,8 +228,8 @@ namespace Interceptor.Communication
         {
             StringBuilder sb = new StringBuilder();
             if (Hash != null)
-                sb.AppendFormat("[{0}]", Hash);
-            sb.AppendFormat("{{l:{0}}}{{h:{1}}}: ", Length, Header);
+                sb.Append('[').Append(Hash).Append(']');
+            sb.Append("{l:").Append(Length).Append("}{h:").Append(Header).Append("}: ");
 
             int oldPosition = Position;
             Position = 0;
@@ -237,45 +237,41 @@ namespace Interceptor.Communication
             {
                 for (int i = 0; i < Structure.Length; i++)
                 {
-                    string format = "{{{0}}}";
-
-                    object result = null;
+                    sb.Append('{');
                     switch (Structure[i])
                     {
                         case PacketValue.Short:
-                            result = Read<short>();
+                            sb.Append(Read<short>());
                             break;
-                        case PacketValue.Int:
-                            result = Read<int>();
+                        case PacketValue.Integer:
+                            sb.Append(Read<int>());
                             break;
                         case PacketValue.Boolean:
-                            result = Read<bool>();
+                            sb.Append(Read<bool>());
                             break;
                         case PacketValue.String:
-                            result = ReadString();
+                            sb.Append(ReadString());
                             break;
                         case PacketValue.Byte:
-                            result = Read<byte>();
+                            sb.Append(Read<byte>());
                             break;
                         case PacketValue.Double:
-                            result = Read<double>();
-                            break;
-                        default:
+                            sb.Append(Read<double>());
                             break;
                     }
 
-                    sb.AppendFormat(format, result);
+                    sb.Append('}');
                 }
             }
-            
-            if(Structure == null || (Structure != null && Position != _bytes.Length))
+
+            if (Structure == null || (Structure != null && Position != _bytes.Length))
             {
                 Span<byte> payloadSpan = _bytes.Span;
                 for (int i = Position; i < _bytes.Length; i++)
                 {
                     byte value = payloadSpan[i];
                     if (value <= 13)
-                        sb.AppendFormat("[{0}]", value);
+                        sb.Append('[').Append(value).Append(']');
                     else
                         sb.Append((char)value);
                 }

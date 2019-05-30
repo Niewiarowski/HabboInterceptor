@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -23,8 +24,8 @@ namespace Interceptor
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
         public LogEvent Log { get; set; }
-        public Dictionary<ushort, PacketInformation> InMessages { get; private set; } = new Dictionary<ushort, PacketInformation>();
-        public Dictionary<ushort, PacketInformation> OutMessages { get; private set; } = new Dictionary<ushort, PacketInformation>();
+        public Dictionary<ushort, PacketInformation> InMessages { get; } = new Dictionary<ushort, PacketInformation>();
+        public Dictionary<ushort, PacketInformation> OutMessages { get; } = new Dictionary<ushort, PacketInformation>();
         public bool Paused { get; set; }
 
         private RC4Key DecipherKey { get; set; }
@@ -116,13 +117,70 @@ namespace Interceptor
                 game.Disassemble();
                 game.GenerateMessageHashes();
 
-                foreach ((ushort id, MessageItem message) in game.InMessages)
-                    InMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
-                foreach ((ushort id, MessageItem message) in game.OutMessages)
-                    OutMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
+                foreach ((ushort id, HMessage message) in game.InMessages)
+                {
+                    InMessages.Add(id, new PacketInformation(message.Id, message.Hash, null));
+                    message.Class = null;
+                    message.Parser = null;
+                    message.References.Clear();
+                }
+
+                foreach ((ushort id, HMessage message) in game.OutMessages)
+                {
+                    OutMessages.Add(id, new PacketInformation(message.Id, message.Hash, null));
+                    message.Class = null;
+                    message.Parser = null;
+                    message.References.Clear();
+                }
             }
 
             GC.Collect();
+        }
+
+        private async Task InterceptKeyAsync()
+        {
+            Paused = true;
+            await Task.Delay(1000); // Wait for client to finish sending the first 3 packets
+
+            Memory<byte> buffer = new byte[1024];
+            int decipherBytesRead = await Client.GetStream().ReadAsync(buffer);
+
+            if (RC4Extractor.TryExtractKey(out RC4Key key))
+            {
+                await LogInternalAsync(new LogMessage(LogSeverity.Info, string.Format("RC4: {0}", key)));
+                Memory<byte> decipherBuffer = new byte[decipherBytesRead];
+
+                for (int i = 0; i < 256; i++)
+                {
+                    for (int j = 0; j < 256; j++)
+                    {
+                        RC4Key tempKey = key.Copy(i, j);
+                        tempKey.Reverse(decipherBytesRead);
+                        if (tempKey.X == 0 && tempKey.Y == 0)
+                        {
+                            buffer.Slice(0, decipherBytesRead).CopyTo(decipherBuffer);
+                            RC4Key possibleDecipherKey = tempKey.Copy();
+                            possibleDecipherKey.Cipher(decipherBuffer);
+
+                            IReadOnlyCollection<Packet> packets = Packet.Parse(decipherBuffer);
+                            if (packets.Count == 0)
+                                continue;
+
+                            CipherKey = tempKey;
+                            DecipherKey = possibleDecipherKey;
+
+                            foreach (Packet packet in packets)
+                                await SendToServerAsync(packet);
+
+                            goto exit;
+                        }
+                    }
+                }
+            }
+            else await LogInternalAsync(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
+
+            exit:
+            Paused = false;
         }
 
         protected override async Task InterceptAsync(TcpClient client, TcpClient server)
@@ -139,7 +197,7 @@ namespace Interceptor
                 {
                     if (Paused)
                     {
-                        Thread.Sleep(10);
+                        await Task.Delay(10);
                         continue;
                     }
 
@@ -149,48 +207,7 @@ namespace Interceptor
                             outgoingCount++;
 
                         if (outgoingCount == 4)
-                        {
-                            Paused = true;
-                            await Task.Delay(1000); // Wait for client to finish sending the first 3 packets
-                            int decipherBytesRead = await clientStream.ReadAsync(buffer);
-
-                            if (RC4Extractor.TryExtractKey(out RC4Key key))
-                            {
-                                await LogInternalAsync(new LogMessage(LogSeverity.Info, string.Format("RC4: {0}", key)));
-                                Memory<byte> decipherBuffer = new byte[decipherBytesRead];
-
-                                for (int i = 0; i < 256; i++)
-                                {
-                                    for (int j = 0; j < 256; j++)
-                                    {
-                                        RC4Key tempKey = key.Copy(i, j);
-                                        tempKey.Reverse(decipherBytesRead);
-                                        if (tempKey.X == 0 && tempKey.Y == 0)
-                                        {
-                                            buffer.Slice(0, decipherBytesRead).CopyTo(decipherBuffer);
-                                            RC4Key possibleDecipherKey = tempKey.Copy();
-                                            possibleDecipherKey.Cipher(decipherBuffer);
-
-                                            Packet[] packets = Packet.Parse(decipherBuffer);
-                                            if (packets.Length == 0)
-                                                continue;
-
-                                            CipherKey = tempKey;
-                                            DecipherKey = possibleDecipherKey;
-
-                                            for (int x = 0; x < packets.Length; x++)
-                                                await SendToServerAsync(packets[x]);
-
-                                            goto exit;
-                                        }
-                                    }
-                                }
-                            }
-                            else await LogInternalAsync(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
-
-                            exit:
-                            Paused = false;
-                        }
+                            await InterceptKeyAsync();
                     }
 
                     int bytesRead = 0;
@@ -224,8 +241,7 @@ namespace Interceptor
                     {
                         if (outgoingCount == 1)
                         {
-                            await DisassembleAsync(packet.ReadString());
-                            packet.Position = 0;
+                            await DisassembleAsync(packet.ReadString(0));
                         }
 
                         await SendToServerAsync(packet);

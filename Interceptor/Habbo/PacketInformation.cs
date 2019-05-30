@@ -8,15 +8,14 @@ namespace Interceptor.Habbo
     {
         Unknown,
         Short,
-        Int,
+        Integer,
         String,
         Boolean,
         Byte,
-        Double,
-        Array
+        Double
     }
 
-    public class PacketInformation
+    public struct PacketInformation
     {
         public ushort Id { get; }
         public string Hash { get; }
@@ -25,7 +24,7 @@ namespace Interceptor.Habbo
         public PacketInformation(ushort id, string hash = null, PacketValue[] structure = null)
         {
             Id = id;
-            Hash = hash ?? string.Empty;
+            Hash = hash?.Substring(0, 6) ?? string.Empty;
             Structure = structure;
         }
     }
