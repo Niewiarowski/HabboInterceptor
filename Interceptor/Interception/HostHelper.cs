@@ -12,6 +12,7 @@ namespace Interceptor.Interception
         static HostHelper()
         {
             HostsFilePath = Path.Combine(Environment.SystemDirectory, "drivers\\etc\\hosts");
+            TryRemoveRedirects();
         }
 
         // Should make this class use Span<T>

@@ -13,7 +13,10 @@ namespace InterceptorTest
             Console.Title = "InterceptorTest";
             HabboInterceptor interceptor = new HabboInterceptor();
 
-            interceptor.Connected += () => Task.CompletedTask;
+            interceptor.Connected += () =>
+            {
+                return Task.CompletedTask;
+            };
             interceptor.Incoming += packet =>
             {
                 Console.ForegroundColor = ConsoleColor.Red;
@@ -26,9 +29,13 @@ namespace InterceptorTest
                 Console.WriteLine("-> {0}", packet);
                 return Task.CompletedTask;
             };
-            interceptor.Log += message => { Console.WriteLine(message.ToString()); return Task.CompletedTask; };
+            interceptor.Log += message =>
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine(message.ToString());
+                return Task.CompletedTask;
+            };
 
-            Console.WriteLine("Starting...");
             interceptor.Start();
             await Task.Delay(-1);
         }

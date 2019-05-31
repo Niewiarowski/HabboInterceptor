@@ -79,6 +79,11 @@ namespace Interceptor.Communication
             _bytes = bytes.ToArray();
         }
 
+        public Packet(ushort header)
+        {
+            Header = header;
+        }
+
         public static IReadOnlyCollection<Packet> Parse(Memory<byte> bytes) => Parse(bytes.Span);
         public static IReadOnlyCollection<Packet> Parse(Span<byte> bytes)
         {
@@ -241,9 +246,11 @@ namespace Interceptor.Communication
                     {
                         case PacketValue.Short:
                             sb.Append(Read<short>());
+                            sb.Append('s');
                             break;
                         case PacketValue.Integer:
                             sb.Append(Read<int>());
+                            sb.Append('i');
                             break;
                         case PacketValue.Boolean:
                             sb.Append(Read<bool>());
@@ -253,9 +260,11 @@ namespace Interceptor.Communication
                             break;
                         case PacketValue.Byte:
                             sb.Append(Read<byte>());
+                            sb.Append('b');
                             break;
                         case PacketValue.Double:
                             sb.Append(Read<double>());
+                            sb.Append('d');
                             break;
                     }
 
