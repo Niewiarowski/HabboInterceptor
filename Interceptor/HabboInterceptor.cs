@@ -11,7 +11,6 @@ using Interceptor.Habbo;
 using Interceptor.Interception;
 using Interceptor.Logging;
 using Interceptor.Memory;
-using System.Diagnostics;
 
 namespace Interceptor
 {
@@ -22,11 +21,7 @@ namespace Interceptor
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
         public LogEvent Log { get; set; }
-        //public Dictionary<ushort, PacketInformation> InMessages { get; } = new Dictionary<ushort, PacketInformation>();
-        //private List<PacketInformation> InMessages { get; } = new List<PacketInformation>();
         private PacketInformation[] InMessages { get; } = new PacketInformation[4001];
-        //public Dictionary<ushort, PacketInformation> OutMessages { get; } = new Dictionary<ushort, PacketInformation>();
-        //private List<PacketInformation> OutMessages { get; } = new List<PacketInformation>();
         private PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
         public string Production { get; private set; }
 

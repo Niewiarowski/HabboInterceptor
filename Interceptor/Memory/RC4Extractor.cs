@@ -73,7 +73,7 @@ namespace Interceptor.Memory
                     return objects.Cast<ManagementBaseObject>().SingleOrDefault()?["CommandLine"]?.ToString();
             }
 
-            return Process.GetProcessesByName("chrome").OrderByDescending(p => p.StartTime).FirstOrDefault(p => GetCommandLine(p).Contains("ppapi"));
+            return Process.GetProcessesByName("chrome").Union(Process.GetProcessesByName("plugin-container")).OrderByDescending(p => p.StartTime).FirstOrDefault(p => p.ProcessName == "plugin-container" || GetCommandLine(p).Contains("ppapi"));
         }
 
         private static IEnumerable<MemoryPage> GetMemoryPages()
