@@ -11,6 +11,7 @@ using Interceptor.Habbo;
 using Interceptor.Interception;
 using Interceptor.Logging;
 using Interceptor.Memory;
+using System.Diagnostics;
 
 namespace Interceptor
 {
@@ -21,9 +22,12 @@ namespace Interceptor
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
         public LogEvent Log { get; set; }
-        public Dictionary<ushort, PacketInformation> InMessages { get; } = new Dictionary<ushort, PacketInformation>();
-        public Dictionary<ushort, PacketInformation> OutMessages { get; } = new Dictionary<ushort, PacketInformation>();
-        public bool Paused { get; set; }
+        //public Dictionary<ushort, PacketInformation> InMessages { get; } = new Dictionary<ushort, PacketInformation>();
+        //private List<PacketInformation> InMessages { get; } = new List<PacketInformation>();
+        private PacketInformation[] InMessages { get; } = new PacketInformation[4001];
+        //public Dictionary<ushort, PacketInformation> OutMessages { get; } = new Dictionary<ushort, PacketInformation>();
+        //private List<PacketInformation> OutMessages { get; } = new List<PacketInformation>();
+        private PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
         public string Production { get; private set; }
 
         private RC4Key DecipherKey { get; set; }
@@ -128,7 +132,7 @@ namespace Interceptor
 
                 foreach ((ushort id, HMessage message) in game.InMessages)
                 {
-                    InMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
+                    InMessages[id] = new PacketInformation(message.Id, message.Hash, message.Structure);
                     message.Class = null;
                     message.Parser = null;
                     message.References.Clear();
@@ -136,7 +140,7 @@ namespace Interceptor
 
                 foreach ((ushort id, HMessage message) in game.OutMessages)
                 {
-                    OutMessages.Add(id, new PacketInformation(message.Id, message.Hash, message.Structure));
+                    OutMessages[id] = new PacketInformation(message.Id, message.Hash, message.Structure);
                     message.Class = null;
                     message.Parser = null;
                     message.References.Clear();
@@ -148,7 +152,6 @@ namespace Interceptor
 
         private async Task InterceptKeyAsync()
         {
-            Paused = true;
             await Task.Delay(1000); // Wait for client to finish sending the first 3 packets
 
             Memory<byte> buffer = new byte[1024];
@@ -189,15 +192,12 @@ namespace Interceptor
                                 await SendToServerAsync(packet);
                             }
 
-                            goto exit;
+                            return;
                         }
                     }
                 }
             }
             else await LogInternalAsync(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
-
-            exit:
-            Paused = false;
         }
 
         private async Task<bool> ReceiveAsync(NetworkStream stream, Memory<byte> buffer)
@@ -227,12 +227,6 @@ namespace Interceptor
             {
                 while (IsConnected)
                 {
-                    if (Paused)
-                    {
-                        await Task.Delay(10);
-                        continue;
-                    }
-
                     if (outgoing && CipherKey == null)
                     {
                         if (outgoingCount != 5)
@@ -260,8 +254,9 @@ namespace Interceptor
                         DecipherKey?.Cipher(packetBytes);
 
                     Packet packet = new Packet(length, packetBytes);
-                    Dictionary<ushort, PacketInformation> messages = outgoing ? OutMessages : InMessages;
-                    if (messages.TryGetValue(packet.Header, out PacketInformation packetInfo))
+                    PacketInformation[] messages = outgoing ? OutMessages : InMessages;
+                    PacketInformation packetInfo = messages[packet.Header];
+                    if (packetInfo.Id != 0)
                     {
                         packet.Hash = packetInfo.Hash;
                         packet.Structure = packetInfo.Structure;

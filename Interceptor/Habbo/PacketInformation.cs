@@ -1,4 +1,6 @@
-﻿namespace Interceptor.Habbo
+﻿using System.Runtime.InteropServices;
+
+namespace Interceptor.Habbo
 {
     public enum PacketValue : byte
     {
@@ -11,6 +13,7 @@
         Double
     }
 
+    [StructLayout(LayoutKind.Sequential, Pack = 2)]
     public struct PacketInformation
     {
         public ushort Id { get; }
