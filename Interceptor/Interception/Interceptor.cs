@@ -11,8 +11,9 @@ namespace Interceptor.Interception
         public int ClientPort { get; }
         public IPAddress ServerIp { get; }
         public int ServerPort { get; }
-
-        public Func<Task> Connected;
+        public Func<Task> Connected { get; set; }
+        public Func<Task> Disconnnected { get; set; }
+        public bool IsConnected { get; protected set; }
 
         protected TcpClient Client { get; private set; }
         protected TcpClient Server { get; private set; }
@@ -21,6 +22,7 @@ namespace Interceptor.Interception
         private Task ClientTask { get; set; }
         private Task ServerTask { get; set; }
         private bool HasStarted { get; set; }
+        private object DisconnectLock { get; } = new object();
 
         public Interceptor(IPAddress clientIp, IPAddress serverIp, int port) : this(clientIp, port, serverIp, port) { }
         public Interceptor(IPAddress clientIp, int clientPort, IPAddress serverIp, int serverPort)
@@ -42,10 +44,33 @@ namespace Interceptor.Interception
 
         public virtual void Stop()
         {
-            Client.GetStream().Close();
-            Server.GetStream().Close();
-            Client.Close();
-            Server.Close();
+            lock (DisconnectLock)
+            {
+                if (!IsConnected)
+                    return;
+
+                Client.GetStream().Close();
+                Server.GetStream().Close();
+                Client.Close();
+                Server.Close();
+
+                if (IsConnected)
+                {
+                    if (Disconnnected != null)
+                    {
+                        Delegate[] delegates = Disconnnected.GetInvocationList();
+                        for (int i = 0; i < delegates.Length; i++)
+                            try
+                            {
+                                _ = ((Func<Task>)delegates[i])();
+                            }
+                            catch { }
+                    }
+                }
+
+                IsConnected = false;
+                HasStarted = false;
+            }
         }
 
         private async Task ConnectAsync()
@@ -60,7 +85,18 @@ namespace Interceptor.Interception
             };
             await Server.ConnectAsync(ServerIp, ServerPort);
             listener.Stop();
-            Connected?.Invoke();
+            IsConnected = true;
+
+            if (Connected != null)
+            {
+                Delegate[] delegates = Connected.GetInvocationList();
+                for (int i = 0; i < delegates.Length; i++)
+                    try
+                    {
+                        await ((Func<Task>)delegates[i])().ConfigureAwait(false);
+                    }
+                    catch { }
+            }
 
             ClientTask = Task.Factory.StartNew(() => InterceptAsync(Client, Server), TaskCreationOptions.LongRunning);
             ServerTask = Task.Factory.StartNew(() => InterceptAsync(Server, Client), TaskCreationOptions.LongRunning);

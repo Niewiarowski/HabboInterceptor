@@ -88,7 +88,7 @@ namespace Interceptor
 
         internal async Task SendInternalAsync(TcpClient client, Packet packet)
         {
-            if (!packet.Blocked)
+            if (!packet.Blocked && packet.Valid)
             {
                 bool outgoing = client == Server;
                 PacketEvent packetEvent = (outgoing ? Outgoing : Incoming);
@@ -200,6 +200,21 @@ namespace Interceptor
             Paused = false;
         }
 
+        private async Task<bool> ReceiveAsync(NetworkStream stream, Memory<byte> buffer)
+        {
+            int bytesRead = 0;
+            do
+            {
+                int tempBytesRead = await stream.ReadAsync(buffer.Slice(bytesRead));
+                if (tempBytesRead == 0)
+                    return false;
+
+                bytesRead += tempBytesRead;
+            }
+            while (bytesRead != buffer.Length);
+            return true;
+        }
+
         protected override async Task InterceptAsync(TcpClient client, TcpClient server)
         {
             int outgoingCount = 0;
@@ -210,7 +225,7 @@ namespace Interceptor
             var clientStream = client.GetStream();
             try
             {
-                while (true)
+                while (IsConnected)
                 {
                     if (Paused)
                     {
@@ -227,9 +242,8 @@ namespace Interceptor
                             await InterceptKeyAsync();
                     }
 
-                    int bytesRead = 0;
-                    do bytesRead += await clientStream.ReadAsync(lengthBuffer.Slice(bytesRead));
-                    while (bytesRead != lengthBuffer.Length);
+                    if (!await ReceiveAsync(clientStream, lengthBuffer))
+                        break;
 
                     if (outgoing)
                         DecipherKey?.Cipher(lengthBuffer);
@@ -239,9 +253,8 @@ namespace Interceptor
                     int length = BitConverter.ToInt32(lengthBuffer.Span);
 
                     Memory<byte> packetBytes = length > buffer.Length ? new byte[length] : buffer.Slice(0, length);
-                    bytesRead = 0;
-                    do bytesRead += await clientStream.ReadAsync(packetBytes.Slice(bytesRead));
-                    while (bytesRead < length);
+                    if (!await ReceiveAsync(clientStream, packetBytes))
+                        break;
 
                     if (outgoing)
                         DecipherKey?.Cipher(packetBytes);
@@ -265,9 +278,18 @@ namespace Interceptor
                         await SendToClientAsync(packet);
                 }
             }
+            catch (IOException) { }
             catch (Exception e)
             {
                 await LogInternalAsync(new LogMessage(LogSeverity.Error, "An exception was thrown during packet interception", e));
+            }
+            finally
+            {
+                if (IsConnected)
+                {
+                    await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disconnected."));
+                    Stop();
+                }
             }
         }
     }

@@ -14,6 +14,7 @@ namespace Interceptor.Communication
         public ushort Header { get; }
         public ReadOnlyMemory<byte> Bytes => _bytes;
         public bool Blocked { get; set; }
+        public bool Valid => Length == _bytes.Length;
         public string Hash { get; internal set; }
         public PacketValue[] Structure { get; internal set; }
 

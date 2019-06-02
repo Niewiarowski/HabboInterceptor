@@ -15,8 +15,6 @@ namespace Interceptor.Interception
             TryRemoveRedirects();
         }
 
-        // Should make this class use Span<T>
-
         public static bool TryAddRedirect(string original, string redirect)
         {
             try
