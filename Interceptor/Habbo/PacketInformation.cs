@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 
 namespace Interceptor.Habbo
 {
@@ -17,13 +18,13 @@ namespace Interceptor.Habbo
     public struct PacketInformation
     {
         public ushort Id { get; }
-        public string Hash { get; }
+        public ReadOnlyMemory<char> Hash { get; }
         public PacketValue[] Structure { get; }
 
         public PacketInformation(ushort id, string hash = null, PacketValue[] structure = null)
         {
             Id = id;
-            Hash = hash?.Substring(0, 6) ?? string.Empty;
+            Hash = hash?.AsMemory().Slice(0, 6) ?? null;
             Structure = structure;
         }
     }

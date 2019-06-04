@@ -46,10 +46,10 @@ namespace Interceptor.Memory
             if(process != null)
             {
                 CurrentHandle = OpenProcess(0x0010 | 0x0008 | 0x0020, false, process.Id);
-                if(CurrentHandle != IntPtr.Zero)
+                if (CurrentHandle != IntPtr.Zero)
                 {
                     Memory<byte> rc4Key = default;
-                    foreach(MemoryPage page in GetMemoryPages())
+                    foreach (MemoryPage page in GetMemoryPages())
                     {
                         rc4Key = FindRC4Key(page);
                         if (!rc4Key.IsEmpty)

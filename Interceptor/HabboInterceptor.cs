@@ -12,6 +12,9 @@ using Interceptor.Interception;
 using Interceptor.Logging;
 using Interceptor.Memory;
 
+using Flazzy.ABC;
+using Flazzy.Tags;
+
 namespace Interceptor
 {
     public class HabboInterceptor : Interception.Interceptor
@@ -140,6 +143,33 @@ namespace Interceptor
                     message.Parser = null;
                     message.References.Clear();
                 }
+
+                foreach(var abc in game.ABCFiles)
+                {
+                    ((Dictionary<ASMultiname, List<ASClass>>)abc.GetType().GetField("_classesCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(abc)).Clear();
+
+                    abc.Methods.Clear();
+                    abc.Metadata.Clear();
+                    abc.Instances.Clear();
+                    abc.Classes.Clear();
+                    abc.Scripts.Clear();
+                    abc.MethodBodies.Clear();
+
+                    abc.Pool.Integers.Clear();
+                    abc.Pool.UIntegers.Clear();
+                    abc.Pool.Doubles.Clear();
+                    abc.Pool.Strings.Clear();
+                    abc.Pool.Namespaces.Clear();
+                    abc.Pool.NamespaceSets.Clear();
+                    abc.Pool.Multinames.Clear();
+
+                    abc.Dispose();
+                }
+
+                game.Tags.Clear();
+                ((Dictionary<ASClass, HMessage>)typeof(HGame).GetField("_messages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
+                ((Dictionary<DoABCTag, ABCFile>)typeof(HGame).GetField("_abcFileTags", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
+                game.ABCFiles.Clear();
             }
 
             GC.Collect();
@@ -184,7 +214,7 @@ namespace Interceptor
                                     await DisassembleAsync(packet.ReadString(4));
                                     disassembledClient = true;
                                 }
-                                await SendToServerAsync(packet);
+                                await SendInternalAsync(Server, packet);
                             }
 
                             return;
@@ -262,10 +292,10 @@ namespace Interceptor
                         if (outgoingCount == 1)
                             Production = packet.ReadString(0);
 
-                        await SendToServerAsync(packet);
+                        await SendInternalAsync(Server, packet);
                     }
                     else
-                        await SendToClientAsync(packet);
+                        await SendInternalAsync(Client, packet);
                 }
             }
             catch (IOException) { }

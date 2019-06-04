@@ -15,7 +15,7 @@ namespace Interceptor.Communication
         public ReadOnlyMemory<byte> Bytes => _bytes;
         public bool Blocked { get; set; }
         public bool Valid => Length == _bytes.Length;
-        public string Hash { get; internal set; }
+        public ReadOnlyMemory<char> Hash { get; internal set; }
         public PacketValue[] Structure { get; internal set; }
 
         private int _position;
@@ -232,7 +232,7 @@ namespace Interceptor.Communication
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
-            if (Hash != null)
+            if (!Hash.IsEmpty)
                 sb.Append('[').Append(Hash).Append(']');
             sb.Append("{l:").Append(Length).Append("}{h:").Append(Header).Append("}: ");
 
