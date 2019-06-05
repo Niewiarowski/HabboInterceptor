@@ -23,9 +23,8 @@ namespace Interceptor
         public delegate Task LogEvent(LogMessage message);
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
+        public HabboPackets Packets { get; } = new HabboPackets();
         public LogEvent Log { get; set; }
-        private PacketInformation[] InMessages { get; } = new PacketInformation[4001];
-        private PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
         public string Production { get; private set; }
         public bool PauseIncoming { get; set; }
         public bool PauseOutgoing { get; set; }
@@ -121,64 +120,6 @@ namespace Interceptor
             }
         }
 
-        private async Task DisassembleAsync(string clientUrl)
-        {
-            string swfUrl = string.Concat(clientUrl, "Habbo.swf");
-            using (WebClient wc = new WebClient())
-            await using (Stream stream = await wc.OpenReadTaskAsync(swfUrl))
-            using (HGame game = new HGame(stream))
-            {
-                await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
-                game.Disassemble();
-                game.GenerateMessageHashes();
-
-                foreach ((ushort id, HMessage message) in game.InMessages)
-                {
-                    InMessages[id] = new PacketInformation(message.Id, message.Hash, message.Structure);
-                    message.Class = null;
-                    message.Parser = null;
-                    message.References.Clear();
-                }
-
-                foreach ((ushort id, HMessage message) in game.OutMessages)
-                {
-                    OutMessages[id] = new PacketInformation(message.Id, message.Hash, message.Structure);
-                    message.Class = null;
-                    message.Parser = null;
-                    message.References.Clear();
-                }
-
-                foreach(var abc in game.ABCFiles)
-                {
-                    ((Dictionary<ASMultiname, List<ASClass>>)abc.GetType().GetField("_classesCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(abc)).Clear();
-
-                    abc.Methods.Clear();
-                    abc.Metadata.Clear();
-                    abc.Instances.Clear();
-                    abc.Classes.Clear();
-                    abc.Scripts.Clear();
-                    abc.MethodBodies.Clear();
-
-                    abc.Pool.Integers.Clear();
-                    abc.Pool.UIntegers.Clear();
-                    abc.Pool.Doubles.Clear();
-                    abc.Pool.Strings.Clear();
-                    abc.Pool.Namespaces.Clear();
-                    abc.Pool.NamespaceSets.Clear();
-                    abc.Pool.Multinames.Clear();
-
-                    abc.Dispose();
-                }
-
-                game.Tags.Clear();
-                ((Dictionary<ASClass, HMessage>)typeof(HGame).GetField("_messages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
-                ((Dictionary<DoABCTag, ABCFile>)typeof(HGame).GetField("_abcFileTags", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
-                game.ABCFiles.Clear();
-            }
-
-            GC.Collect();
-        }
-
         private async Task InterceptKeyAsync()
         {
             await Task.Delay(1000); // Wait for client to finish sending the first 3 packets
@@ -215,9 +156,11 @@ namespace Interceptor
                             {
                                 if (!disassembledClient)
                                 {
-                                    await DisassembleAsync(packet.ReadString(4));
+                                    await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
+                                    await Packets.DisassembleAsync(packet.ReadString(4));
                                     disassembledClient = true;
                                 }
+
                                 await SendInternalAsync(Server, packet);
                             }
 
@@ -289,7 +232,7 @@ namespace Interceptor
                         DecipherKey?.Cipher(packetBytes);
 
                     Packet packet = new Packet(length, packetBytes);
-                    PacketInformation[] messages = outgoing ? OutMessages : InMessages;
+                    PacketInformation[] messages = outgoing ? Packets.OutMessages : Packets.InMessages;
                     PacketInformation packetInfo = messages[packet.Header];
                     if (packetInfo.Id != 0)
                     {

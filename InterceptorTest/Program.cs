@@ -16,13 +16,11 @@ namespace InterceptorTest
             interceptor.Incoming += (Packet packet) =>
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("<- {0}", packet);
                 return Task.CompletedTask;
             };
             interceptor.Outgoing += (Packet packet) =>
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("-> {0}", packet);
                 return Task.CompletedTask;
             };
             interceptor.Log += message =>
