@@ -27,6 +27,8 @@ namespace Interceptor
         private PacketInformation[] InMessages { get; } = new PacketInformation[4001];
         private PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
         public string Production { get; private set; }
+        public bool PauseIncoming { get; set; }
+        public bool PauseOutgoing { get; set; }
 
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
@@ -44,7 +46,6 @@ namespace Interceptor
             }
             else
             {
-
                 Interception.Interceptor interceptor = new Interception.Interceptor(ClientIp, ClientPort, ServerIp, ServerPort);
                 interceptor.Start();
                 interceptor.Connected += () =>
@@ -110,10 +111,13 @@ namespace Interceptor
                     }
                 }
 
-                Memory<byte> packetBytes = packet.Construct();
-                if (outgoing)
-                    CipherKey?.Cipher(packetBytes);
-                await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
+                if (!packet.Blocked && packet.Valid)
+                {
+                    Memory<byte> packetBytes = packet.Construct();
+                    if (outgoing)
+                        CipherKey?.Cipher(packetBytes);
+                    await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
+                }
             }
         }
 
@@ -252,6 +256,12 @@ namespace Interceptor
             {
                 while (IsConnected)
                 {
+                    if((outgoing && PauseOutgoing) || (!outgoing && PauseIncoming))
+                    {
+                        await Task.Delay(20);
+                        continue;
+                    }
+
                     if (outgoing && CipherKey == null)
                     {
                         if (outgoingCount != 5)

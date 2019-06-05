@@ -208,7 +208,7 @@ namespace Interceptor.Communication
                 Position += buffer.Length + 2;
         }
 
-        private void Resize(int newLength) => Resize(0, newLength);
+        private void Resize(int newLength) => Resize(_bytes.Length, newLength - _bytes.Length);
         private void Resize(int index, int oldLength, int newLength)
         {
             if (oldLength != newLength)

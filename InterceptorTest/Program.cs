@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 
 using Interceptor;
+using Interceptor.Communication;
 
 namespace InterceptorTest
 {
@@ -12,13 +13,13 @@ namespace InterceptorTest
             Console.Title = "InterceptorTest";
             HabboInterceptor interceptor = new HabboInterceptor();
 
-            interceptor.Incoming += packet =>
+            interceptor.Incoming += (Packet packet) =>
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("<- {0}", packet);
                 return Task.CompletedTask;
             };
-            interceptor.Outgoing += packet =>
+            interceptor.Outgoing += (Packet packet) =>
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("-> {0}", packet);
