@@ -1144,8 +1144,7 @@ namespace Interceptor.Habbo
             if (container == null) return traitName;
 
             return container.GetTraits(TraitKind.Slot, TraitKind.Constant, TraitKind.Getter)
-                .Where(t => t.QName == traitName)
-                .FirstOrDefault()?.Type;
+                .FirstOrDefault(t => t.QName == traitName)?.Type;
         }
         private bool TryGetPacketValue(ASMultiname multiname, ASClass @class, out PacketValue value)
         {
