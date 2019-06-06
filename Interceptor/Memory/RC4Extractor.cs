@@ -2,8 +2,8 @@
 using System.Linq;
 using System.Management;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 using Interceptor.Encryption;
 
@@ -68,12 +68,15 @@ namespace Interceptor.Memory
         {
             static string GetCommandLine(Process process)
             {
-                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(string.Concat("SELECT CommandLine FROM Win32_Process WHERE ProcessId = ", process.Id)))
-                using (ManagementObjectCollection objects = searcher.Get())
-                    return objects.Cast<ManagementBaseObject>().SingleOrDefault()?["CommandLine"]?.ToString();
+                using ManagementObjectSearcher searcher = new ManagementObjectSearcher(string.Concat("SELECT CommandLine FROM Win32_Process WHERE ProcessId = ", process.Id));
+                using ManagementObjectCollection objects = searcher.Get();
+                return objects.Cast<ManagementBaseObject>().SingleOrDefault()?["CommandLine"]?.ToString();
             }
 
-            return Process.GetProcessesByName("chrome").Union(Process.GetProcessesByName("plugin-container")).OrderByDescending(p => p.StartTime).FirstOrDefault(p => p.ProcessName == "plugin-container" || GetCommandLine(p).Contains("ppapi"));
+            return Process.GetProcessesByName("chrome")
+                .Union(Process.GetProcessesByName("plugin-container"))
+                .OrderByDescending(p => p.StartTime)
+                .FirstOrDefault(p => p.ProcessName == "plugin-container" || GetCommandLine(p).Contains("ppapi"));
         }
 
         private static IEnumerable<MemoryPage> GetMemoryPages()

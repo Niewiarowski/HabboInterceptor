@@ -2,24 +2,23 @@
 using System.Threading.Tasks;
 
 using Interceptor;
-using Interceptor.Communication;
 
 namespace InterceptorTest
 {
-    class Program
+    internal class Program
     {
-        static async Task Main(string[] args)
+        internal static async Task Main()
         {
             Console.Title = "InterceptorTest";
             HabboInterceptor interceptor = new HabboInterceptor();
 
-            interceptor.Incoming += (Packet packet) =>
+            interceptor.Incoming += packet =>
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("<- {0}", packet);
                 return Task.CompletedTask;
             };
-            interceptor.Outgoing += (Packet packet) =>
+            interceptor.Outgoing += packet =>
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("-> {0}", packet);

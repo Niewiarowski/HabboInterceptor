@@ -5,12 +5,12 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Interceptor.Communication;
-using Interceptor.Encryption;
 using Interceptor.Habbo;
-using Interceptor.Interception;
-using Interceptor.Logging;
 using Interceptor.Memory;
+using Interceptor.Logging;
+using Interceptor.Encryption;
+using Interceptor.Interception;
+using Interceptor.Communication;
 
 using Flazzy.ABC;
 using Flazzy.Tags;
@@ -50,13 +50,9 @@ namespace Interceptor
                 interceptor.Start();
                 interceptor.Connected += () =>
                 {
-                    Connected += () =>
-                    {
-                        if (!HostHelper.TryRemoveRedirects())
-                            return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
-
-                        return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
-                    };
+                    Connected += () => LogInternalAsync(!HostHelper.TryRemoveRedirects()
+                        ? new LogMessage(LogSeverity.Warning, "Failed to remove host redirect.")
+                        : new LogMessage(LogSeverity.Info, "Connected."));
 
                     base.Start();
                     return Task.CompletedTask;
@@ -86,8 +82,15 @@ namespace Interceptor
             }
         }
 
-        public Task SendToServerAsync(Packet packet) => SendInternalAsync(Server, packet);
-        public Task SendToClientAsync(Packet packet) => SendInternalAsync(Client, packet);
+        public Task SendToServerAsync(Packet packet)
+        {
+            return SendInternalAsync(Server, packet);
+        }
+
+        public Task SendToClientAsync(Packet packet)
+        {
+            return SendInternalAsync(Client, packet);
+        }
 
         internal async Task SendInternalAsync(TcpClient client, Packet packet)
         {
@@ -114,8 +117,7 @@ namespace Interceptor
                 if (!packet.Blocked && packet.Valid)
                 {
                     Memory<byte> packetBytes = packet.Construct();
-                    if (outgoing)
-                        CipherKey?.Cipher(packetBytes);
+                    if (outgoing) CipherKey?.Cipher(packetBytes);
                     await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
                 }
             }
@@ -148,7 +150,7 @@ namespace Interceptor
                     message.References.Clear();
                 }
 
-                foreach(var abc in game.ABCFiles)
+                foreach (ABCFile abc in game.ABCFiles)
                 {
                     ((Dictionary<ASMultiname, List<ASClass>>)abc.GetType().GetField("_classesCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(abc)).Clear();
 
@@ -251,12 +253,12 @@ namespace Interceptor
             Memory<byte> buffer = new byte[3072];
             Memory<byte> lengthBuffer = new byte[4];
 
-            var clientStream = client.GetStream();
+            NetworkStream clientStream = client.GetStream();
             try
             {
                 while (IsConnected)
                 {
-                    if((outgoing && PauseOutgoing) || (!outgoing && PauseIncoming))
+                    if ((outgoing && PauseOutgoing) || (!outgoing && PauseIncoming))
                     {
                         await Task.Delay(20);
                         continue;

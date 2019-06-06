@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Net;
+using System.Linq;
 
 namespace Interceptor.Interception
 {
@@ -19,9 +19,9 @@ namespace Interceptor.Interception
         {
             try
             {
-                string match = string.Format("{0} {1}", original, redirect);
+                string match = $"{original} {redirect}";
                 if (!File.ReadAllLines(HostsFilePath).Any(l => l.Contains(match)))
-                    File.AppendAllText(HostsFilePath, string.Format("\r\n{0} {1} #{2}", original, redirect, "HabboInterceptor"));
+                    File.AppendAllText(HostsFilePath, $"\r\n{original} {redirect} #HabboInterceptor");
                 return true;
             }
             catch

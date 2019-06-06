@@ -79,7 +79,7 @@ namespace Interceptor.Interception
             listener.Start();
             Client = await listener.AcceptTcpClientAsync();
             Client.NoDelay = true;
-            Server = new TcpClient()
+            Server = new TcpClient
             {
                 NoDelay = true
             };
@@ -91,11 +91,13 @@ namespace Interceptor.Interception
             {
                 Delegate[] delegates = Connected.GetInvocationList();
                 for (int i = 0; i < delegates.Length; i++)
+                {
                     try
                     {
                         await ((Func<Task>)delegates[i])().ConfigureAwait(false);
                     }
                     catch { }
+                }
             }
 
             ClientTask = Task.Factory.StartNew(() => InterceptAsync(Client, Server), TaskCreationOptions.LongRunning);
