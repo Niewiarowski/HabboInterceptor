@@ -11,6 +11,7 @@ namespace Interceptor.Encryption
 
         private Memory<byte> _key { get; set; }
 
+        private RC4Key() { }
         public RC4Key(ReadOnlySpan<byte> buffer)
         {
             _key = new byte[256];

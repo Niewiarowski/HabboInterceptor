@@ -32,34 +32,67 @@ namespace Interceptor
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
 
-        public HabboInterceptor() : base(IPAddress.Parse("127.0.0.1"), HostHelper.GetIPAddressFromHost("game-us.habbo.com"), 38101)
+        public HabboInterceptor() : base(IPAddress.Loopback, null, 0)
         {
         }
 
         public override void Start()
         {
-            if (!HostHelper.TryAddRedirect(ClientIp.ToString(), "game-us.habbo.com"))
-            {
-                LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
-                throw new Exception("Failed to add host redirect.");
-            }
-            else
-            {
-                Interception.Interceptor interceptor = new Interception.Interceptor(ClientIp, ClientPort, ServerIp, ServerPort);
-                interceptor.Start();
-                interceptor.Connected += () =>
+            List<Interception.Interceptor> interceptors = new List<Interception.Interceptor>(8);
+
+            Dictionary<string, int> hotels = new Dictionary<string, int>
                 {
-                    Connected += () =>
-                    {
-                        if (!HostHelper.TryRemoveRedirects())
-                            return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
-
-                        return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
-                    };
-
-                    base.Start();
-                    return Task.CompletedTask;
+                    {"game-us.habbo.com", 38101 },
+                    {"game-es.habbo.com", 30000 },
+                    {"game-nl.habbo.com", 30000 },
+                    {"game-de.habbo.com", 30000 },
+                    {"game-br.habbo.com", 30000 },
+                    {"game-fi.habbo.com", 30000 },
+                    {"game-it.habbo.com", 30000 },
+                    {"game-tr.habbo.com", 30000 }
                 };
+
+            int localIpCounter = 1;
+            foreach ((string host, int port) in hotels)
+            {
+                string localIp = string.Concat("127.0.0.", localIpCounter++);
+                var interceptor = new Interception.Interceptor(IPAddress.Parse(localIp), HostHelper.GetIPAddressFromHost(host), port);
+                if (!HostHelper.TryAddRedirect(localIp, host))
+                {
+                    LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
+                    throw new Exception("Failed to add host redirect.");
+                }
+
+                interceptor.Connected += onConnect;
+                interceptor.Start();
+                interceptors.Add(interceptor);
+            }
+
+            Task onConnect()
+            {
+                Interception.Interceptor connectedInterceptor = null;
+                foreach (var interceptor in interceptors)
+                {
+                    if (!interceptor.IsConnected)
+                        interceptor.Stop();
+                    else connectedInterceptor = interceptor;
+                }
+
+                ClientIp = connectedInterceptor.ClientIp;
+                ClientPort = connectedInterceptor.ClientPort;
+                ServerIp = connectedInterceptor.ServerIp;
+                ServerPort = connectedInterceptor.ServerPort;
+
+                Connected += () =>
+                {
+                    if (!HostHelper.TryRemoveRedirects())
+                        return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
+
+                    return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
+                };
+
+                base.Start();
+                return Task.CompletedTask;
             }
         }
 
@@ -199,7 +232,7 @@ namespace Interceptor
             {
                 while (IsConnected)
                 {
-                    if((outgoing && PauseOutgoing) || (!outgoing && PauseIncoming))
+                    if ((outgoing && PauseOutgoing) || (!outgoing && PauseIncoming))
                     {
                         await Task.Delay(20);
                         continue;

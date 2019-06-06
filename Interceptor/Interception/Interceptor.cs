@@ -7,15 +7,15 @@ namespace Interceptor.Interception
 {
     public class Interceptor
     {
-        public IPAddress ClientIp { get; }
-        public int ClientPort { get; }
-        public IPAddress ServerIp { get; }
-        public int ServerPort { get; }
+        public IPAddress ClientIp { get; protected set; }
+        public int ClientPort { get; protected set; }
+        public IPAddress ServerIp { get; protected set; }
+        public int ServerPort { get; protected set; }
         public Func<Task> Connected { get; set; }
         public Func<Task> Disconnnected { get; set; }
         public bool IsConnected { get; protected set; }
 
-        protected TcpClient Client { get; private set; }
+        protected TcpClient Client { get; set; }
         protected TcpClient Server { get; private set; }
 
         private Task ConnectionTask { get; set; }
