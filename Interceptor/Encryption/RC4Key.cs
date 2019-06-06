@@ -9,24 +9,35 @@ namespace Interceptor.Encryption
         public int X { get; private set; }
         public int Y { get; private set; }
 
-        private Memory<byte> _key { get; }
+        private Memory<byte> _key { get; set; }
 
-        public RC4Key(string key)
+        private RC4Key() { }
+        public RC4Key(ReadOnlySpan<byte> buffer)
         {
-            _key = new byte[key.Length / 2];
-            for (int i = 0; i < key.Length; i += 2)
-                _key.Span[i / 2] = Convert.ToByte(key.Substring(i, 2), 16);
-        }
+            _key = new byte[256];
+            Span<byte> key = _key.Span;
 
-        public RC4Key(ReadOnlySpan<byte> key, int x = 0, int y = 0)
-        {
-            X = x;
-            Y = y;
-            _key = key.ToArray();
+            for (int i = 0; i < 256; i++)
+                key[i] = (byte)i;
+
+            for (int x = 0, y = 0; y < key.Length; y++)
+            {
+                x += key[y];
+                x += buffer[y % buffer.Length];
+                x %= key.Length;
+                (key[x], key[y]) = (key[y], key[x]);
+            }
         }
 
         public RC4Key Copy() => Copy(X, Y);
-        public RC4Key Copy(int x, int y) => new RC4Key(_key.Span, x, y);
+        public RC4Key Copy(int x, int y) => Copy(_key.Span, x, y);
+        public static RC4Key Copy(ReadOnlySpan<byte> key, int x = 0, int y = 0) =>
+            new RC4Key
+            {
+                _key = key.ToArray(),
+                X = x,
+                Y = y
+            };
 
         public void Reverse(int count)
         {

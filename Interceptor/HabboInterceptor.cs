@@ -5,12 +5,12 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Interceptor.Habbo;
-using Interceptor.Memory;
-using Interceptor.Logging;
-using Interceptor.Encryption;
-using Interceptor.Interception;
 using Interceptor.Communication;
+using Interceptor.Encryption;
+using Interceptor.Habbo;
+using Interceptor.Interception;
+using Interceptor.Logging;
+using Interceptor.Memory;
 
 using Flazzy.ABC;
 using Flazzy.Tags;
@@ -23,9 +23,8 @@ namespace Interceptor
         public delegate Task LogEvent(LogMessage message);
         public PacketEvent Incoming { get; set; }
         public PacketEvent Outgoing { get; set; }
+        public HabboPackets Packets { get; } = new HabboPackets();
         public LogEvent Log { get; set; }
-        private PacketInformation[] InMessages { get; } = new PacketInformation[4001];
-        private PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
         public string Production { get; private set; }
         public bool PauseIncoming { get; set; }
         public bool PauseOutgoing { get; set; }
@@ -33,30 +32,67 @@ namespace Interceptor
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
 
-        public HabboInterceptor() : base(IPAddress.Parse("127.0.0.1"), HostHelper.GetIPAddressFromHost("game-us.habbo.com"), 38101)
+        public HabboInterceptor() : base(IPAddress.Loopback, null, 0)
         {
         }
 
         public override void Start()
         {
-            if (!HostHelper.TryAddRedirect(ClientIp.ToString(), "game-us.habbo.com"))
-            {
-                LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
-                throw new Exception("Failed to add host redirect.");
-            }
-            else
-            {
-                Interception.Interceptor interceptor = new Interception.Interceptor(ClientIp, ClientPort, ServerIp, ServerPort);
-                interceptor.Start();
-                interceptor.Connected += () =>
-                {
-                    Connected += () => LogInternalAsync(!HostHelper.TryRemoveRedirects()
-                        ? new LogMessage(LogSeverity.Warning, "Failed to remove host redirect.")
-                        : new LogMessage(LogSeverity.Info, "Connected."));
+            List<Interception.Interceptor> interceptors = new List<Interception.Interceptor>(8);
 
-                    base.Start();
-                    return Task.CompletedTask;
+            Dictionary<string, int> hotels = new Dictionary<string, int>
+                {
+                    {"game-us.habbo.com", 38101 },
+                    {"game-es.habbo.com", 30000 },
+                    {"game-nl.habbo.com", 30000 },
+                    {"game-de.habbo.com", 30000 },
+                    {"game-br.habbo.com", 30000 },
+                    {"game-fi.habbo.com", 30000 },
+                    {"game-it.habbo.com", 30000 },
+                    {"game-tr.habbo.com", 30000 }
                 };
+
+            int localIpCounter = 1;
+            foreach ((string host, int port) in hotels)
+            {
+                string localIp = string.Concat("127.0.0.", localIpCounter++);
+                var interceptor = new Interception.Interceptor(IPAddress.Parse(localIp), HostHelper.GetIPAddressFromHost(host), port);
+                if (!HostHelper.TryAddRedirect(localIp, host))
+                {
+                    LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
+                    throw new Exception("Failed to add host redirect.");
+                }
+
+                interceptor.Connected += onConnect;
+                interceptor.Start();
+                interceptors.Add(interceptor);
+            }
+
+            Task onConnect()
+            {
+                Interception.Interceptor connectedInterceptor = null;
+                foreach (var interceptor in interceptors)
+                {
+                    if (!interceptor.IsConnected)
+                        interceptor.Stop();
+                    else connectedInterceptor = interceptor;
+                }
+
+                ClientIp = connectedInterceptor.ClientIp;
+                ClientPort = connectedInterceptor.ClientPort;
+                ServerIp = connectedInterceptor.ServerIp;
+                ServerPort = connectedInterceptor.ServerPort;
+
+                Connected += () =>
+                {
+                    if (!HostHelper.TryRemoveRedirects())
+                        return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
+
+                    return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
+                };
+
+                base.Start();
+                return Task.CompletedTask;
             }
         }
 
@@ -82,15 +118,8 @@ namespace Interceptor
             }
         }
 
-        public Task SendToServerAsync(Packet packet)
-        {
-            return SendInternalAsync(Server, packet);
-        }
-
-        public Task SendToClientAsync(Packet packet)
-        {
-            return SendInternalAsync(Client, packet);
-        }
+        public Task SendToServerAsync(Packet packet) => SendInternalAsync(Server, packet);
+        public Task SendToClientAsync(Packet packet) => SendInternalAsync(Client, packet);
 
         internal async Task SendInternalAsync(TcpClient client, Packet packet)
         {
@@ -117,68 +146,11 @@ namespace Interceptor
                 if (!packet.Blocked && packet.Valid)
                 {
                     Memory<byte> packetBytes = packet.Construct();
-                    if (outgoing) CipherKey?.Cipher(packetBytes);
+                    if (outgoing)
+                        CipherKey?.Cipher(packetBytes);
                     await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
                 }
             }
-        }
-
-        private async Task DisassembleAsync(string clientUrl)
-        {
-            string swfUrl = string.Concat(clientUrl, "Habbo.swf");
-            using (WebClient wc = new WebClient())
-            await using (Stream stream = await wc.OpenReadTaskAsync(swfUrl))
-            using (HGame game = new HGame(stream))
-            {
-                await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
-                game.Disassemble();
-                game.GenerateMessageHashes();
-
-                foreach ((ushort id, HMessage message) in game.InMessages)
-                {
-                    InMessages[id] = new PacketInformation(message.Id, message.Hash, message.Structure);
-                    message.Class = null;
-                    message.Parser = null;
-                    message.References.Clear();
-                }
-
-                foreach ((ushort id, HMessage message) in game.OutMessages)
-                {
-                    OutMessages[id] = new PacketInformation(message.Id, message.Hash, message.Structure);
-                    message.Class = null;
-                    message.Parser = null;
-                    message.References.Clear();
-                }
-
-                foreach (ABCFile abc in game.ABCFiles)
-                {
-                    ((Dictionary<ASMultiname, List<ASClass>>)abc.GetType().GetField("_classesCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(abc)).Clear();
-
-                    abc.Methods.Clear();
-                    abc.Metadata.Clear();
-                    abc.Instances.Clear();
-                    abc.Classes.Clear();
-                    abc.Scripts.Clear();
-                    abc.MethodBodies.Clear();
-
-                    abc.Pool.Integers.Clear();
-                    abc.Pool.UIntegers.Clear();
-                    abc.Pool.Doubles.Clear();
-                    abc.Pool.Strings.Clear();
-                    abc.Pool.Namespaces.Clear();
-                    abc.Pool.NamespaceSets.Clear();
-                    abc.Pool.Multinames.Clear();
-
-                    abc.Dispose();
-                }
-
-                game.Tags.Clear();
-                ((Dictionary<ASClass, HMessage>)typeof(HGame).GetField("_messages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
-                ((Dictionary<DoABCTag, ABCFile>)typeof(HGame).GetField("_abcFileTags", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
-                game.ABCFiles.Clear();
-            }
-
-            GC.Collect();
         }
 
         private async Task InterceptKeyAsync()
@@ -217,9 +189,11 @@ namespace Interceptor
                             {
                                 if (!disassembledClient)
                                 {
-                                    await DisassembleAsync(packet.ReadString(4));
+                                    await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
+                                    await Packets.DisassembleAsync(packet.ReadString(4));
                                     disassembledClient = true;
                                 }
+
                                 await SendInternalAsync(Server, packet);
                             }
 
@@ -253,7 +227,7 @@ namespace Interceptor
             Memory<byte> buffer = new byte[3072];
             Memory<byte> lengthBuffer = new byte[4];
 
-            NetworkStream clientStream = client.GetStream();
+            var clientStream = client.GetStream();
             try
             {
                 while (IsConnected)
@@ -291,7 +265,7 @@ namespace Interceptor
                         DecipherKey?.Cipher(packetBytes);
 
                     Packet packet = new Packet(length, packetBytes);
-                    PacketInformation[] messages = outgoing ? OutMessages : InMessages;
+                    PacketInformation[] messages = outgoing ? Packets.OutMessages : Packets.InMessages;
                     PacketInformation packetInfo = messages[packet.Header];
                     if (packetInfo.Id != 0)
                     {

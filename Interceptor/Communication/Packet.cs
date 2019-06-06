@@ -222,7 +222,7 @@ namespace Interceptor.Communication
             if (count != 0)
             {
                 Memory<byte> newBytes = new byte[_bytes.Length + count];
-                _bytes.Slice(0, index).CopyTo(newBytes);
+                _bytes.Slice(0, count < 0 ? index + count : index).CopyTo(newBytes);
                 _bytes.Slice(index).CopyTo(newBytes.Slice(index + count));
                 _bytes = newBytes;
                 Length += count;

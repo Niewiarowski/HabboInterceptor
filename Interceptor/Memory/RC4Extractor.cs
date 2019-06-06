@@ -57,7 +57,7 @@ namespace Interceptor.Memory
                     }
 
                     CloseHandle(CurrentHandle);
-                    return rc4Key.IsEmpty ? null : new RC4Key(rc4Key.Span);
+                    return rc4Key.IsEmpty ? null : RC4Key.Copy(rc4Key.Span);
                 }
             }
 
