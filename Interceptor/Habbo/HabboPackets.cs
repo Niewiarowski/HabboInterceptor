@@ -1,11 +1,11 @@
-﻿using Flazzy.ABC;
-using Flazzy.Tags;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+
+using Flazzy.ABC;
+using Flazzy.Tags;
 
 namespace Interceptor.Habbo
 {
@@ -14,7 +14,7 @@ namespace Interceptor.Habbo
         public PacketInformation[] InMessages { get; } = new PacketInformation[4001];
         public PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
 
-        private bool _hasDisassembled { get; set; }
+        private bool HasDisassembled { get; set; }
 
         public PacketInformation GetPacketInformation(ReadOnlySpan<char> hash, bool outgoing)
         {
@@ -28,10 +28,10 @@ namespace Interceptor.Habbo
 
         public async Task DisassembleAsync(string clientUrl)
         {
-            if (_hasDisassembled)
+            if (HasDisassembled)
                 return;
 
-            _hasDisassembled = true;
+            HasDisassembled = true;
 
             string swfUrl = string.Concat(clientUrl, "Habbo.swf");
             using (WebClient wc = new WebClient())
@@ -57,7 +57,7 @@ namespace Interceptor.Habbo
                     message.References.Clear();
                 }
 
-                foreach (var abc in game.ABCFiles)
+                foreach (ABCFile abc in game.ABCFiles)
                 {
                     ((Dictionary<ASMultiname, List<ASClass>>)abc.GetType().GetField("_classesCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(abc)).Clear();
 

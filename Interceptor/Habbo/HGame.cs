@@ -201,7 +201,7 @@ namespace Interceptor.Habbo
             ASCode code = fromMethod.Body.ParseCode();
             for (int i = 0; i < code.Count; i++)
             {
-                int extraNamePopCount = 0;
+                //int extraNamePopCount = 0;  <- Never accesed
                 ASInstruction instruction = code[i];
                 switch (instruction.OP)
                 {
@@ -233,7 +233,7 @@ namespace Interceptor.Habbo
                         {
                             var constructProp = (ConstructPropIns)instruction;
 
-                            extraNamePopCount = constructProp.ArgCount;
+                            //extraNamePopCount = constructProp.ArgCount; <- Never accesed
                             nameStack.Push(constructProp.PropertyName);
                             break;
                         }
@@ -304,14 +304,13 @@ namespace Interceptor.Habbo
             }
 
             ASCode code = habboMessagesClass.Constructor.Body.ParseCode();
-            int inMapTypeIndex = habboMessagesClass.Traits[0].QNameIndex;
+            //int inMapTypeIndex = habboMessagesClass.Traits[0].QNameIndex; <- Unused
             int outMapTypeIndex = habboMessagesClass.Traits[1].QNameIndex;
 
             ASInstruction[] instructions = code
                 .Where(i => i.OP == OPCode.GetLex ||
                             i.OP == OPCode.PushShort ||
-                            i.OP == OPCode.PushByte)
-                .ToArray();
+                            i.OP == OPCode.PushByte).ToArray();
 
             for (int i = 0; i < instructions.Length; i += 3)
             {
@@ -340,6 +339,8 @@ namespace Interceptor.Habbo
 
                     ASCode toArrayCode = toArrayMethod.Body.ParseCode();
                     int index = toArrayCode.IndexOf(OPCode.PushString);
+
+                    //Usamos las variables: messageInstance, toArrayMethod y toArrayCode para llegar a obtener el index que al final nunca usamos, me pregunto la funcionalidad de este bloque desde el if(id == 4000) 
                 }
             }
         }
@@ -721,7 +722,7 @@ namespace Interceptor.Habbo
                 ASCode code = method.Body.ParseCode();
                 foreach (ASInstruction instruction in code)
                 {
-                    ASMultiname multiname = null;
+                    ASMultiname multiname;
                     if (instruction.OP == OPCode.FindPropStrict)
                     {
                         var findPropStrictIns = (FindPropStrictIns)instruction;

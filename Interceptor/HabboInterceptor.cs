@@ -5,15 +5,12 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Interceptor.Communication;
-using Interceptor.Encryption;
 using Interceptor.Habbo;
-using Interceptor.Interception;
-using Interceptor.Logging;
 using Interceptor.Memory;
-
-using Flazzy.ABC;
-using Flazzy.Tags;
+using Interceptor.Logging;
+using Interceptor.Encryption;
+using Interceptor.Interception;
+using Interceptor.Communication;
 
 namespace Interceptor
 {
@@ -63,12 +60,12 @@ namespace Interceptor
                     throw new Exception("Failed to add host redirect.");
                 }
 
-                interceptor.Connected += onConnect;
+                interceptor.Connected += OnConnect;
                 interceptor.Start();
                 interceptors.Add(interceptor);
             }
 
-            Task onConnect()
+            Task OnConnect()
             {
                 Interception.Interceptor connectedInterceptor = null;
                 foreach (var interceptor in interceptors)
@@ -78,18 +75,17 @@ namespace Interceptor
                     else connectedInterceptor = interceptor;
                 }
 
-                ClientIp = connectedInterceptor.ClientIp;
-                ClientPort = connectedInterceptor.ClientPort;
-                ServerIp = connectedInterceptor.ServerIp;
-                ServerPort = connectedInterceptor.ServerPort;
-
-                Connected += () =>
+                if (connectedInterceptor != null)
                 {
-                    if (!HostHelper.TryRemoveRedirects())
-                        return LogInternalAsync(new LogMessage(LogSeverity.Warning, "Failed to remove host redirect."));
+                    ClientIp = connectedInterceptor.ClientIp;
+                    ClientPort = connectedInterceptor.ClientPort;
+                    ServerIp = connectedInterceptor.ServerIp;
+                    ServerPort = connectedInterceptor.ServerPort;
+                }
 
-                    return LogInternalAsync(new LogMessage(LogSeverity.Info, "Connected."));
-                };
+                Connected += () => LogInternalAsync(!HostHelper.TryRemoveRedirects()
+                    ? new LogMessage(LogSeverity.Warning, "Failed to remove host redirect.")
+                    : new LogMessage(LogSeverity.Info, "Connected."));
 
                 base.Start();
                 return Task.CompletedTask;
