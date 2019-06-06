@@ -314,23 +314,26 @@ namespace Interceptor.Habbo
 
             for (int i = 0; i < instructions.Length; i += 3)
             {
-                var getLexInst = (instructions[i + 0] as GetLexIns);
-                bool isOutgoing = (getLexInst.TypeNameIndex == outMapTypeIndex);
+                var getLexInst = instructions[i + 0] as GetLexIns;
+                bool isOutgoing = getLexInst?.TypeNameIndex == outMapTypeIndex;
 
-                var primitive = (instructions[i + 1] as Primitive);
-                ushort id = Convert.ToUInt16(primitive.Value);
+                var primitive = instructions[i + 1] as Primitive;
+                ushort id = Convert.ToUInt16(primitive?.Value);
 
-                getLexInst = (instructions[i + 2] as GetLexIns);
-                ASClass messageClass = abc.GetClass(getLexInst.TypeName.Name);
+                getLexInst = instructions[i + 2] as GetLexIns;
+                ASClass messageClass = abc.GetClass(getLexInst?.TypeName.Name);
 
                 var message = new HMessage(id, isOutgoing, messageClass);
                 (isOutgoing ? OutMessages : InMessages).Add(id, message);
 
-                if (_messages.ContainsKey(messageClass))
-                {
-                    //_messages[messageClass].SharedIds.Add(id);
-                }
-                else _messages.Add(messageClass, message);
+                //if (_messages.ContainsKey(messageClass))
+                //{
+                //    //_messages[messageClass].SharedIds.Add(id);
+                //}
+                //else _messages.Add(messageClass, message);
+
+                if (!_messages.ContainsKey(messageClass)) 
+                    _messages.Add(messageClass, message);
 
                 if (id == 4000 && isOutgoing)
                 {
@@ -573,25 +576,21 @@ namespace Interceptor.Habbo
         public string GenerateHash()
         {
             Flush();
-            using (var md5 = MD5.Create())
-            {
-                long curPos = BaseStream.Position;
-                BaseStream.Position = 0;
-
-                byte[] hashData = md5.ComputeHash(BaseStream);
-                string hashAsHex = (BitConverter.ToString(hashData));
-
-                BaseStream.Position = curPos;
-                return hashAsHex.Replace("-", string.Empty).ToLower();
-            }
+            using var md5 = MD5.Create();
+            long curPos = BaseStream.Position;
+            BaseStream.Position = 0;
+            byte[] hashData = md5.ComputeHash(BaseStream);
+            string hashAsHex = BitConverter.ToString(hashData);
+            BaseStream.Position = curPos;
+            return hashAsHex.Replace("-", string.Empty).ToLower();
         }
 
         private void WriteSorted<T>(IDictionary<T, int> storage, Action<T> writer)
         {
-            foreach (KeyValuePair<T, int> storedPair in storage)
+            foreach (var (key, value) in storage)
             {
-                writer(storedPair.Key);
-                base.Write(storedPair.Value);
+                writer(key);
+                base.Write(value);
             }
         }
         private void WriteOrSort<T>(IDictionary<T, int> storage, Action<T> writer, T value)
@@ -628,9 +627,7 @@ namespace Interceptor.Habbo
 
         public static implicit operator ushort(HMessage message) => message?.Id ?? ushort.MaxValue;
 
-        public HMessage()
-            : this(ushort.MaxValue, false, null, null, null)
-        { }
+        public HMessage() : this(ushort.MaxValue, false, null, null, null) { }
         public HMessage(ushort id, bool isOutgoing, ASClass messageClass)
         {
             Id = id;
@@ -669,36 +666,35 @@ namespace Interceptor.Habbo
             {
                 return Hash;
             }
-            using (var output = new HashWriter(false))
+
+            using var output = new HashWriter(false);
+            output.Write(IsOutgoing);
+            if (!HGame.IsValidIdentifier(Class.QName.Name, true))
             {
-                output.Write(IsOutgoing);
-                if (!HGame.IsValidIdentifier(Class.QName.Name, true))
+                output.Write(Class.Instance, true);
+                output.Write(Class.Instance.Constructor);
+
+                output.Write(References.Count);
+                foreach (HReference reference in References)
                 {
-                    output.Write(Class.Instance, true);
-                    output.Write(Class.Instance.Constructor);
+                    output.Write(reference.IsStatic);
+                    output.Write(reference.IsAnonymous);
 
-                    output.Write(References.Count);
-                    foreach (HReference reference in References)
-                    {
-                        output.Write(reference.IsStatic);
-                        output.Write(reference.IsAnonymous);
+                    output.Write(reference.MethodRank);
+                    output.Write(reference.InstructionRank);
 
-                        output.Write(reference.MethodRank);
-                        output.Write(reference.InstructionRank);
+                    output.Write(reference.FromMethod);
 
-                        output.Write(reference.FromMethod);
-
-                        output.Write(reference.FromClass.Constructor);
-                        output.Write(reference.FromClass.Instance.Constructor);
-                    }
-                    if (!IsOutgoing && Parser != null)
-                    {
-                        output.Write(Parser.Instance, true);
-                    }
+                    output.Write(reference.FromClass.Constructor);
+                    output.Write(reference.FromClass.Instance.Constructor);
                 }
-                else output.Write(Class.QName.Name);
-                return Hash = output.GenerateHash();
+                if (!IsOutgoing && Parser != null)
+                {
+                    output.Write(Parser.Instance, true);
+                }
             }
+            else output.Write(Class.QName.Name);
+            return Hash = output.GenerateHash();
         }
 
         public override string ToString() => Id.ToString();
@@ -710,8 +706,7 @@ namespace Interceptor.Habbo
             ABCFile abc = Class.GetABC();
             ASInstance instance = Class.Instance;
 
-            ASInstance superInstance = abc.GetInstance(instance.Super);
-            if (superInstance == null) superInstance = instance;
+            ASInstance superInstance = abc.GetInstance(instance.Super) ?? instance;
 
             ASMethod parserGetterMethod = superInstance.GetGetter("parser")?.Method;
             if (parserGetterMethod == null) return null;
@@ -914,7 +909,8 @@ namespace Interceptor.Habbo
             {
                 return GetOutgoingStructure(getArrayCode, resultPusher, argCount);
             }
-            else if (argCount == 0 || resultPusher.OP == OPCode.PushNull)
+
+            if (argCount == 0 || resultPusher.OP == OPCode.PushNull)
             {
                 return null;
             }
@@ -924,12 +920,9 @@ namespace Interceptor.Habbo
                 var getProperty = (GetPropertyIns)resultPusher;
                 return GetOutgoingStructure(Class, getProperty.PropertyName);
             }
-            else if (Local.IsGetLocal(resultPusher.OP))
-            {
-                return GetOutgoingStructure(getArrayCode, (Local)resultPusher);
-            }
 
-            return null;
+            return Local.IsGetLocal(resultPusher.OP) ? 
+                GetOutgoingStructure(getArrayCode, (Local)resultPusher) : null;
         }
 
         private PacketValue[] GetOutgoingStructure(ASCode code, Local getLocal)
