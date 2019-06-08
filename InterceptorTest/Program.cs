@@ -18,7 +18,7 @@ namespace InterceptorTest
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("<- {0}", packet);
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("-------------\nPresiona una tecla para enviar un paquete\n-------------");
+                Console.WriteLine("-------------\nPress a key to send a packet\n-------------");
                 return Task.CompletedTask;
             };
             interceptor.Outgoing += packet =>
@@ -26,7 +26,7 @@ namespace InterceptorTest
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("-> {0}", packet);
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("-------------\nPresiona una tecla para enviar un paquete\n-------------");
+                Console.WriteLine("-------------\nPress a key to send a packet\n-------------");
                 return Task.CompletedTask;
             };
             interceptor.Log += message =>
