@@ -56,7 +56,7 @@ namespace Interceptor
                 var interceptor = new Interception.Interceptor(IPAddress.Parse(localIp), HostHelper.GetIPAddressFromHost(host), port);
                 if (!HostHelper.TryAddRedirect(localIp, host))
                 {
-                    LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect.")).Wait();
+                    LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect. Run me as an administrator.")).Wait();
                     throw new Exception("Failed to add host redirect.");
                 }
 

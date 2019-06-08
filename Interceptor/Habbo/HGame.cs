@@ -18,8 +18,7 @@ namespace Interceptor.Habbo
 {
     public class HGame : ShockwaveFlash
     {
-        private static readonly string[] _reservedNames = new[]
-        {
+        private static readonly string[] ReservedNames = {
             "break", "case", "catch", "class", "continue",
             "default", "do", "dynamic", "each", "else",
             "extends", "false", "final", "finally", "for",
@@ -47,16 +46,9 @@ namespace Interceptor.Habbo
         {
             Location = path;
         }
-        public HGame(byte[] data)
-            : this(new MemoryStream(data))
-
-        { }
-        public HGame(Stream input)
-            : this(input, false)
-        { }
-        public HGame(Stream input, bool leaveOpen)
-            : this(new FlashReader(input, leaveOpen))
-        { }
+        public HGame(byte[] data) : this(new MemoryStream(data)) { }
+        public HGame(Stream input) : this(input, false) { }
+        public HGame(Stream input, bool leaveOpen) : this(new FlashReader(input, leaveOpen)) { }
 
         protected HGame(FlashReader input)
             : base(input)
@@ -75,7 +67,7 @@ namespace Interceptor.Habbo
             FindMessagesReferences();
             foreach (HMessage message in OutMessages.Values.Concat(InMessages.Values))
             {
-                if (!Messages.TryGetValue(message.GenerateHash(), out var @group))
+                if (!Messages.TryGetValue(message.GenerateHash(), out List<HMessage> @group))
                 {
                     group = new List<HMessage>();
                     Messages.Add(message.Hash, group);
@@ -103,7 +95,7 @@ namespace Interceptor.Habbo
                 foreach (ASMethod fromMethod in methods)
                 {
                     bool isStatic = (fromMethod.Trait?.IsStatic ?? @class.Constructor == fromMethod);
-                    var fromContainer = (isStatic ? (ASContainer)@class : instance);
+                    ASContainer fromContainer = (isStatic ? (ASContainer)@class : instance);
 
                     List<HReference> refernces = FindMessageReferences(@class, fromContainer, fromMethod);
                     if (refernces.Count > 0)
@@ -124,12 +116,12 @@ namespace Interceptor.Habbo
                 }
             }
 
-            var froms = new Dictionary<ASContainer, List<HReference>>();
+            Dictionary<ASContainer, List<HReference>> froms = new Dictionary<ASContainer, List<HReference>>();
             foreach (HMessage incomingMsg in InMessages.Values)
             {
                 foreach (HReference reference in incomingMsg.References)
                 {
-                    if (!froms.TryGetValue(reference.FromMethod.Container, out var references))
+                    if (!froms.TryGetValue(reference.FromMethod.Container, out List<HReference> references))
                     {
                         references = new List<HReference>();
                         froms.Add(reference.FromMethod.Container, references);
@@ -145,7 +137,7 @@ namespace Interceptor.Habbo
             foreach (ASClass @class in abc.Classes)
             {
                 ASContainer container = null;
-                if (froms.TryGetValue(@class, out var references))
+                if (froms.TryGetValue(@class, out List<HReference> references))
                 {
                     container = @class;
                 }
@@ -155,7 +147,7 @@ namespace Interceptor.Habbo
                 }
                 if (container != null)
                 {
-                    var methodReferenceGroups = new Dictionary<ASMethod, List<HReference>>();
+                    Dictionary<ASMethod, List<HReference>> methodReferenceGroups = new Dictionary<ASMethod, List<HReference>>();
                     foreach (HReference reference in references)
                     {
                         reference.FromClass = @class;
@@ -164,7 +156,7 @@ namespace Interceptor.Habbo
                         reference.IsStatic = container.IsStatic;
                         reference.GroupCount = references.Count;
 
-                        if (!methodReferenceGroups.TryGetValue(reference.FromMethod, out var methodReferences))
+                        if (!methodReferenceGroups.TryGetValue(reference.FromMethod, out List<HReference> methodReferences))
                         {
                             methodReferences = new List<HReference>();
                             methodReferenceGroups.Add(reference.FromMethod, methodReferences);
@@ -175,7 +167,7 @@ namespace Interceptor.Habbo
                     int methodRank = 1;
                     foreach (ASMethod method in container.GetMethods())
                     {
-                        if (methodReferenceGroups.TryGetValue(method, out var methodReferences))
+                        if (methodReferenceGroups.TryGetValue(method, out List<HReference> methodReferences))
                         {
                             foreach (HReference reference in methodReferences)
                             {
@@ -194,33 +186,32 @@ namespace Interceptor.Habbo
             int instructionRank = 0;
             ABCFile abc = fromMethod.GetABC();
 
-            var nameStack = new Stack<ASMultiname>();
-            var references = new List<HReference>();
+            Stack<ASMultiname> nameStack = new Stack<ASMultiname>();
+            List<HReference> references = new List<HReference>();
 
             ASContainer container = null;
             ASCode code = fromMethod.Body.ParseCode();
             for (int i = 0; i < code.Count; i++)
             {
-                //int extraNamePopCount = 0;  <- Never accesed
                 ASInstruction instruction = code[i];
                 switch (instruction.OP)
                 {
                     default: continue;
                     case OPCode.NewFunction:
                         {
-                            var newFunction = (NewFunctionIns)instruction;
+                            NewFunctionIns newFunction = (NewFunctionIns)instruction;
                             references.AddRange(FindMessageReferences(fromClass, fromContainer, newFunction.Method));
                             continue;
                         }
                     case OPCode.GetProperty:
                         {
-                            var getProperty = (GetPropertyIns)instruction;
+                            GetPropertyIns getProperty = (GetPropertyIns)instruction;
                             nameStack.Push(getProperty.PropertyName);
                             continue;
                         }
                     case OPCode.GetLex:
                         {
-                            var getLex = (GetLexIns)instruction;
+                            GetLexIns getLex = (GetLexIns)instruction;
                             container = abc.GetClass(getLex.TypeName.Name);
                             continue;
                         }
@@ -231,9 +222,7 @@ namespace Interceptor.Habbo
                         }
                     case OPCode.ConstructProp:
                         {
-                            var constructProp = (ConstructPropIns)instruction;
-
-                            //extraNamePopCount = constructProp.ArgCount; <- Never accesed
+                            ConstructPropIns constructProp = (ConstructPropIns)instruction;
                             nameStack.Push(constructProp.PropertyName);
                             break;
                         }
@@ -245,10 +234,10 @@ namespace Interceptor.Habbo
                 ASClass messageClass = abc.GetClass(messageQName.Name);
                 if (messageClass == null) continue;
 
-                if (!_messages.TryGetValue(messageClass, out var message)) continue;
-                if(message.References.Any(r => r.FromMethod == fromMethod)) continue;
+                if (!_messages.TryGetValue(messageClass, out HMessage message)) continue;
+                if (message.References.Any(r => r.FromMethod == fromMethod)) continue;
 
-                var reference = new HReference();
+                HReference reference = new HReference();
                 message.References.Add(reference);
 
                 if (message.IsOutgoing)
@@ -304,7 +293,6 @@ namespace Interceptor.Habbo
             }
 
             ASCode code = habboMessagesClass.Constructor.Body.ParseCode();
-            //int inMapTypeIndex = habboMessagesClass.Traits[0].QNameIndex; <- Unused
             int outMapTypeIndex = habboMessagesClass.Traits[1].QNameIndex;
 
             ASInstruction[] instructions = code
@@ -314,37 +302,20 @@ namespace Interceptor.Habbo
 
             for (int i = 0; i < instructions.Length; i += 3)
             {
-                var getLexInst = instructions[i + 0] as GetLexIns;
+                GetLexIns getLexInst = instructions[i + 0] as GetLexIns;
                 bool isOutgoing = getLexInst?.TypeNameIndex == outMapTypeIndex;
 
-                var primitive = instructions[i + 1] as Primitive;
+                Primitive primitive = instructions[i + 1] as Primitive;
                 ushort id = Convert.ToUInt16(primitive?.Value);
 
                 getLexInst = instructions[i + 2] as GetLexIns;
                 ASClass messageClass = abc.GetClass(getLexInst?.TypeName.Name);
 
-                var message = new HMessage(id, isOutgoing, messageClass);
+                HMessage message = new HMessage(id, isOutgoing, messageClass);
                 (isOutgoing ? OutMessages : InMessages).Add(id, message);
 
-                //if (_messages.ContainsKey(messageClass))
-                //{
-                //    //_messages[messageClass].SharedIds.Add(id);
-                //}
-                //else _messages.Add(messageClass, message);
-
-                if (!_messages.ContainsKey(messageClass)) 
+                if (!_messages.ContainsKey(messageClass))
                     _messages.Add(messageClass, message);
-
-                if (id == 4000 && isOutgoing)
-                {
-                    ASInstance messageInstance = messageClass.Instance;
-                    ASMethod toArrayMethod = messageInstance.GetMethod(null, "Array", 0);
-
-                    ASCode toArrayCode = toArrayMethod.Body.ParseCode();
-                    int index = toArrayCode.IndexOf(OPCode.PushString);
-
-                    //Usamos las variables: messageInstance, toArrayMethod y toArrayCode para llegar a obtener el index que al final nunca usamos, me pregunto la funcionalidad de este bloque desde el if(id == 4000) 
-                }
             }
         }
 
@@ -358,7 +329,7 @@ namespace Interceptor.Habbo
         {
             if (tag.Kind == TagKind.DoABC)
             {
-                var doABCTag = (DoABCTag)tag;
+                DoABCTag doABCTag = (DoABCTag)tag;
                 doABCTag.ABCData = _abcFileTags[doABCTag].ToArray();
             }
             base.WriteTag(tag, output);
@@ -369,8 +340,8 @@ namespace Interceptor.Habbo
             TagItem tag = base.ReadTag(header, input);
             if (tag.Kind == TagKind.DoABC)
             {
-                var doABCTag = (DoABCTag)tag;
-                var abcFile = new ABCFile(doABCTag.ABCData);
+                DoABCTag doABCTag = (DoABCTag)tag;
+                ABCFile abcFile = new ABCFile(doABCTag.ABCData);
 
                 _abcFileTags[doABCTag] = abcFile;
                 ABCFiles.Add(abcFile);
@@ -394,7 +365,7 @@ namespace Interceptor.Habbo
             }
 
             return (!value.Contains("_-") &&
-                !_reservedNames.Contains(value.Trim()));
+                !ReservedNames.Contains(value.Trim()));
         }
 
         protected override void Dispose(bool disposing)
@@ -562,7 +533,7 @@ namespace Interceptor.Habbo
             if (includeTraits)
             {
                 Write(container.Traits.Count);
-                container.Traits.ForEach(t => Write(t));
+                container.Traits.ForEach(Write);
             }
         }
 
@@ -576,7 +547,7 @@ namespace Interceptor.Habbo
         public string GenerateHash()
         {
             Flush();
-            using var md5 = MD5.Create();
+            using MD5 md5 = MD5.Create();
             long curPos = BaseStream.Position;
             BaseStream.Position = 0;
             byte[] hashData = md5.ComputeHash(BaseStream);
@@ -587,7 +558,7 @@ namespace Interceptor.Habbo
 
         private void WriteSorted<T>(IDictionary<T, int> storage, Action<T> writer)
         {
-            foreach (var (key, value) in storage)
+            foreach ((T key, int value) in storage)
             {
                 writer(key);
                 base.Write(value);
@@ -625,7 +596,10 @@ namespace Interceptor.Habbo
 
         public List<HReference> References { get; }
 
-        public static implicit operator ushort(HMessage message) => message?.Id ?? ushort.MaxValue;
+        public static implicit operator ushort(HMessage message)
+        {
+            return message?.Id ?? ushort.MaxValue;
+        }
 
         public HMessage() : this(ushort.MaxValue, false, null, null, null) { }
         public HMessage(ushort id, bool isOutgoing, ASClass messageClass)
@@ -667,7 +641,7 @@ namespace Interceptor.Habbo
                 return Hash;
             }
 
-            using var output = new HashWriter(false);
+            using HashWriter output = new HashWriter(false);
             output.Write(IsOutgoing);
             if (!HGame.IsValidIdentifier(Class.QName.Name, true))
             {
@@ -697,8 +671,15 @@ namespace Interceptor.Habbo
             return Hash = output.GenerateHash();
         }
 
-        public override string ToString() => Id.ToString();
-        public bool Equals(HMessage other) => Id == other.Id;
+        public override string ToString()
+        {
+            return Id.ToString();
+        }
+
+        public bool Equals(HMessage other)
+        {
+            return Id == other.Id;
+        }
 
         #region Structure Extraction
         private ASClass GetMessageParser()
@@ -720,12 +701,12 @@ namespace Interceptor.Habbo
                     ASMultiname multiname;
                     if (instruction.OP == OPCode.FindPropStrict)
                     {
-                        var findPropStrictIns = (FindPropStrictIns)instruction;
+                        FindPropStrictIns findPropStrictIns = (FindPropStrictIns)instruction;
                         multiname = findPropStrictIns.PropertyName;
                     }
                     else if (instruction.OP == OPCode.GetLex)
                     {
-                        var getLexIns = (GetLexIns)instruction;
+                        GetLexIns getLexIns = (GetLexIns)instruction;
                         multiname = getLexIns.TypeName;
                     }
                     else continue;
@@ -768,7 +749,7 @@ namespace Interceptor.Habbo
                 {
                     case OPCode.CallProperty:
                         {
-                            var callProperty = (CallPropertyIns)next;
+                            CallPropertyIns callProperty = (CallPropertyIns)next;
                             if (callProperty.ArgCount > 0)
                             {
                                 ASMultiname propertyName = null;
@@ -778,14 +759,14 @@ namespace Interceptor.Habbo
                                 {
                                     case OPCode.GetLex:
                                         {
-                                            var getLex = (GetLexIns)previous;
+                                            GetLexIns getLex = (GetLexIns)previous;
                                             propertyName = getLex.TypeName;
                                             break;
                                         }
 
                                     case OPCode.ConstructProp:
                                         {
-                                            var constructProp = (ConstructPropIns)previous;
+                                            ConstructPropIns constructProp = (ConstructPropIns)previous;
                                             propertyName = constructProp.PropertyName;
                                             break;
                                         }
@@ -819,7 +800,7 @@ namespace Interceptor.Habbo
 
                     case OPCode.ConstructProp:
                         {
-                            var constructProp = (ConstructPropIns)next;
+                            ConstructPropIns constructProp = (ConstructPropIns)next;
                             ASInstance innerInstance = abc.GetInstance(constructProp.PropertyName);
 
                             PacketValue[] innerStructure = GetIncomingStructure(innerInstance, innerInstance.Constructor);
@@ -840,7 +821,7 @@ namespace Interceptor.Habbo
 
                     case OPCode.CallSuper:
                         {
-                            var callSuper = (CallSuperIns)next;
+                            CallSuperIns callSuper = (CallSuperIns)next;
                             ASInstance superInstance = abc.GetInstance(instance.Super);
                             ASMethod superMethod = superInstance.GetMethod(callSuper.MethodName.Name, null, callSuper.ArgCount);
 
@@ -852,7 +833,7 @@ namespace Interceptor.Habbo
 
                     case OPCode.CallPropVoid:
                         {
-                            var callPropVoid = (CallPropVoidIns)next;
+                            CallPropVoidIns callPropVoid = (CallPropVoidIns)next;
                             if (callPropVoid.ArgCount != 0) return null;
 
                             if (!TryGetPacketValue(callPropVoid.PropertyName, null, out PacketValue piece)) return null;
@@ -917,11 +898,11 @@ namespace Interceptor.Habbo
 
             if (resultPusher.OP == OPCode.GetProperty)
             {
-                var getProperty = (GetPropertyIns)resultPusher;
+                GetPropertyIns getProperty = (GetPropertyIns)resultPusher;
                 return GetOutgoingStructure(Class, getProperty.PropertyName);
             }
 
-            return Local.IsGetLocal(resultPusher.OP) ? 
+            return Local.IsGetLocal(resultPusher.OP) ?
                 GetOutgoingStructure(getArrayCode, (Local)resultPusher) : null;
         }
 
@@ -934,7 +915,7 @@ namespace Interceptor.Habbo
                 if (instruction == getLocal) break;
                 if (!Local.IsGetLocal(instruction.OP)) continue;
 
-                var local = (Local)instruction;
+                Local local = (Local)instruction;
                 if (local.Register != getLocal.Register) continue;
 
                 for (i += 1; i < code.Count; i++)
@@ -942,20 +923,20 @@ namespace Interceptor.Habbo
                     ASInstruction next = code[i];
                     if (next.OP != OPCode.CallPropVoid) continue;
 
-                    var callPropVoid = (CallPropVoidIns)next;
+                    CallPropVoidIns callPropVoid = (CallPropVoidIns)next;
                     if (callPropVoid.PropertyName.Name != "push") continue;
 
                     ASInstruction previous = code[i - 1];
                     if (previous.OP == OPCode.GetProperty)
                     {
                         ASClass classToCheck = Class;
-                        var getProperty = (GetPropertyIns)previous;
+                        GetPropertyIns getProperty = (GetPropertyIns)previous;
                         ASMultiname propertyName = getProperty.PropertyName;
 
                         ASInstruction beforeGetProp = code[i - 2];
                         if (beforeGetProp.OP == OPCode.GetLex)
                         {
-                            var getLex = (GetLexIns)beforeGetProp;
+                            GetLexIns getLex = (GetLexIns)beforeGetProp;
                             classToCheck = classToCheck.GetABC().GetClass(getLex.TypeName);
                         }
 
@@ -981,7 +962,7 @@ namespace Interceptor.Habbo
                 ASInstruction instruction = code[i];
                 if (instruction.OP == OPCode.NewArray)
                 {
-                    var newArray = (NewArrayIns)instruction;
+                    NewArrayIns newArray = (NewArrayIns)instruction;
                     if (newArray.ArgCount > 0)
                     {
                         PacketValue[] structurePieces = new PacketValue[newArray.ArgCount];
@@ -990,7 +971,7 @@ namespace Interceptor.Habbo
                             ASInstruction previous = code[j];
                             if (Local.IsGetLocal(previous.OP) && previous.OP != OPCode.GetLocal_0)
                             {
-                                var local = (Local)previous;
+                                Local local = (Local)previous;
                                 ASParameter parameter = constructor.Parameters[local.Register - 1];
 
                                 if (!TryGetPacketValue(parameter.Type, null, out PacketValue piece)) return null;
@@ -1006,7 +987,7 @@ namespace Interceptor.Habbo
                 }
                 else if (instruction.OP == OPCode.ConstructSuper)
                 {
-                    var constructSuper = (ConstructSuperIns)instruction;
+                    ConstructSuperIns constructSuper = (ConstructSuperIns)instruction;
                     if (constructSuper.ArgCount > 0)
                     {
                         ASClass superClass = @class.GetABC().GetClass(@class.Instance.Super);
@@ -1015,7 +996,7 @@ namespace Interceptor.Habbo
                 }
                 if (instruction.OP != OPCode.GetProperty) continue;
 
-                var getProperty = (GetPropertyIns)instruction;
+                GetPropertyIns getProperty = (GetPropertyIns)instruction;
                 if (getProperty.PropertyName != propertyName) continue;
 
                 ASInstruction next = code[++i];
@@ -1024,7 +1005,7 @@ namespace Interceptor.Habbo
                 {
                     if (next.OP == OPCode.GetLocal_0) continue;
 
-                    var local = (Local)next;
+                    Local local = (Local)next;
                     ASParameter parameter = constructor.Parameters[local.Register - 1];
 
                     if (!TryGetPacketValue(parameter.Type, null, out PacketValue piece)) return null;
@@ -1038,7 +1019,7 @@ namespace Interceptor.Habbo
                     }
                     else if (next.OP == OPCode.GetLex)
                     {
-                        var getLex = (GetLexIns)next;
+                        GetLexIns getLex = (GetLexIns)next;
                         classToCheck = classToCheck.GetABC().GetClass(getLex.TypeName);
                     }
                     do
@@ -1052,7 +1033,7 @@ namespace Interceptor.Habbo
                         }
                         else if (next.OP == OPCode.CallProperty)
                         {
-                            var callProperty = (CallPropertyIns)next;
+                            CallPropertyIns callProperty = (CallPropertyIns)next;
                             propertyName = callProperty.PropertyName;
                         }
                     }
@@ -1066,24 +1047,24 @@ namespace Interceptor.Habbo
         }
         private PacketValue[] GetOutgoingStructure(ASCode code, ASInstruction beforeReturn, int length)
         {
-            var getLocalEndIndex = -1;
+            int getLocalEndIndex = -1;
             int pushingEndIndex = code.IndexOf(beforeReturn);
 
-            var structure = new PacketValue[length];
-            var pushedLocals = new Dictionary<int, int>();
+            PacketValue[] structure = new PacketValue[length];
+            Dictionary<int, int> pushedLocals = new Dictionary<int, int>();
             for (int i = pushingEndIndex - 1; i >= 0; i--)
             {
                 ASInstruction instruction = code[i];
                 if (instruction.OP == OPCode.GetProperty)
                 {
                     ASClass classToCheck = Class;
-                    var getProperty = (GetPropertyIns)instruction;
+                    GetPropertyIns getProperty = (GetPropertyIns)instruction;
                     ASMultiname propertyName = getProperty.PropertyName;
 
                     ASInstruction previous = code[i - 1];
                     if (previous.OP == OPCode.GetLex)
                     {
-                        var getLex = (GetLexIns)previous;
+                        GetLexIns getLex = (GetLexIns)previous;
                         classToCheck = classToCheck.GetABC().GetClass(getLex.TypeName);
                     }
 
@@ -1093,7 +1074,7 @@ namespace Interceptor.Habbo
                 else if (Local.IsGetLocal(instruction.OP) &&
                     instruction.OP != OPCode.GetLocal_0)
                 {
-                    var local = (Local)instruction;
+                    Local local = (Local)instruction;
                     pushedLocals.Add(local.Register, --length);
                     if (getLocalEndIndex == -1)
                     {
@@ -1107,7 +1088,7 @@ namespace Interceptor.Habbo
                 ASInstruction instruction = code[i];
                 if (!Local.IsSetLocal(instruction.OP)) continue;
 
-                var local = (Local)instruction;
+                Local local = (Local)instruction;
                 if (pushedLocals.TryGetValue(local.Register, out int structIndex))
                 {
                     ASInstruction beforeSet = code[i - 1];
@@ -1191,13 +1172,10 @@ namespace Interceptor.Habbo
         {
             public bool IsStatic { get; set; }
             public bool IsAnonymous { get; set; }
-
             public int ClassRank { get; set; }
             public int MethodRank { get; set; }
             public int InstructionRank { get; set; }
-
             public int GroupCount { get; set; }
-
             public ASClass FromClass { get; set; }
             public ASMethod FromMethod { get; set; }
         }
