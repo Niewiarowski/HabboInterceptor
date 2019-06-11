@@ -1,5 +1,4 @@
-﻿using Interceptor.Communication;
-using System;
+﻿using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -39,7 +38,7 @@ namespace Interceptor.Interception
             if (!HasStarted)
             {
                 HasStarted = true;
-                ConnectionTask = Task.Factory.StartNew(ConnectAsync);
+                ConnectionTask = Task.Run(ConnectAsync);
             }
         }
 

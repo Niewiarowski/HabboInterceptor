@@ -1,9 +1,11 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 using Interceptor.Habbo;
 using Interceptor.Memory;
@@ -112,6 +114,71 @@ namespace Interceptor
                     catch { }
                 }
             }
+        }
+
+        private ConcurrentDictionary<(uint, Func<Packet, bool>), PacketEvent> _outgoingFilters;
+        public uint OutgoingAttach(Func<Packet, bool> predicate, PacketEvent e)
+        {
+            uint id = (uint)DateTime.Now.Ticks;
+
+            if (_outgoingFilters == null)
+            {
+                _outgoingFilters = new ConcurrentDictionary<(uint, Func<Packet, bool>), PacketEvent>();
+                Outgoing += OutgoingFiltering;
+            }
+
+            _outgoingFilters.AddOrUpdate((id, predicate), e, (_, __) => e);
+
+            return id;
+        }
+        public void OutgoingDetach(uint detachId)
+        {
+            var filter = _outgoingFilters.FirstOrDefault(f => f.Key.Item1 == detachId);
+            if (filter.Key.Item1 != 0)
+                _outgoingFilters.Remove(filter.Key, out PacketEvent _);
+
+            if (_outgoingFilters.Count == 0)
+                Outgoing -= OutgoingFiltering;
+        }
+        private Task OutgoingFiltering(Packet packet)
+        {
+            _outgoingFilters.FirstOrDefault(p => p.Key.Item2?.Invoke(packet)
+                ?? false).Value?.Invoke(packet);
+
+            return Task.CompletedTask;
+        }
+
+        private ConcurrentDictionary<(uint, Func<Packet, bool>), PacketEvent> _incomingFilters;
+        public uint IncomingAttach(Func<Packet, bool> predicate, PacketEvent e)
+        {
+            uint id = (uint)DateTime.Now.Ticks;
+
+            if (_incomingFilters == null)
+            {
+                _incomingFilters = new ConcurrentDictionary<(uint, Func<Packet, bool>), PacketEvent>();
+                Incoming += IncomingFiltering;
+            }
+
+            _incomingFilters.AddOrUpdate((id, predicate), e, (_, __) => e);
+
+            return id;
+        }
+        public void IncomingDetach(uint detachId)
+        {
+            var filter = _incomingFilters.FirstOrDefault(f => f.Key.Item1 == detachId);
+            if (filter.Key.Item1 != 0)
+                _incomingFilters.Remove(filter.Key, out PacketEvent _);
+
+            if(_incomingFilters.Count == 0)
+                Incoming -= IncomingFiltering;
+
+        }
+        private Task IncomingFiltering(Packet packet)
+        {
+            _incomingFilters.FirstOrDefault(p => p.Key.Item2?.Invoke(packet)
+                ?? false).Value?.Invoke(packet);
+
+            return Task.CompletedTask;
         }
 
         public Task SendToServerAsync(Packet packet) => SendInternalAsync(Server, packet);

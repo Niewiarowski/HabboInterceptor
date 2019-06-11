@@ -35,29 +35,23 @@ namespace InterceptorTest
                 Console.WriteLine(message.ToString());
                 return Task.CompletedTask;
             };
-            interceptor.Connected += () =>
+
+            //NEW
+            interceptor.OutgoingAttach(p => p.Hash.ToString() == "3ee5fd", async packet => //returns uint detachId
             {
-                PacketSender = StartPacketSender(interceptor);
-                return Task.CompletedTask;
-            };
+                string action = string.Empty;
+                for (int i = 0; i <= 2; i++)
+                    action = packet.ReadString();
+
+                var p = new Packet(2883);
+                p.WriteString(action);
+                p.Write(0);
+                p.Write(0);
+                await interceptor.SendToServerAsync(p);
+            });
 
             interceptor.Start();
             await Task.Delay(-1);
-        }
-
-        internal static Task StartPacketSender(HabboInterceptor interceptor)
-        {
-            return Task.Factory.StartNew(async () =>
-            {
-                while (ReadKey())
-                {
-                    var packet = new Packet(2883);
-                    packet.WriteString("Sending packets test");
-                    packet.Write(0);
-                    packet.Write(0);
-                    await interceptor.SendToServerAsync(packet);
-                }
-            });
         }
 
         internal static bool ReadKey() => Console.ReadKey() != null;
