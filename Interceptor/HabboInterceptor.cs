@@ -141,12 +141,11 @@ namespace Interceptor
             if (_outgoingFilters.Count == 0)
                 Outgoing -= OutgoingFiltering;
         }
+
         private Task OutgoingFiltering(Packet packet)
         {
-            _outgoingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
-                ?? false).Value?.Invoke(packet);
-
-            return Task.CompletedTask;
+            return _outgoingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
+                ?? false).Value?.Invoke(packet) ?? Task.CompletedTask;
         }
 
         private ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _incomingFilters;
