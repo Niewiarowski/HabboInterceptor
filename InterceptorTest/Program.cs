@@ -8,7 +8,6 @@ namespace InterceptorTest
 {
     internal class Program
     {
-        internal static Task PacketSender;
         internal static async Task Main()
         {
             Console.Title = "InterceptorTest";
@@ -17,16 +16,12 @@ namespace InterceptorTest
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("<- {0}", packet);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("-------------\nPress a key to send a packet\n-------------");
                 return Task.CompletedTask;
             };
             interceptor.Outgoing += packet =>
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("-> {0}", packet);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("-------------\nPress a key to send a packet\n-------------");
                 return Task.CompletedTask;
             };
             interceptor.Log += message =>
@@ -37,13 +32,14 @@ namespace InterceptorTest
             };
 
             //NEW
-            interceptor.OutgoingAttach(p => p.Hash.ToString() == "3ee5fd", async packet => //returns uint detachId
+            interceptor.OutgoingAttach(p => p.Hash.Span.Equals("3ee5fd", StringComparison.Ordinal), async packet => //returns uint detachId
             {
                 string action = string.Empty;
                 for (int i = 0; i <= 2; i++)
                     action = packet.ReadString();
 
-                var p = new Packet(2883);
+                // Call Packet(header, length) to avoid resizing internal byte array...
+                var p = new Packet(2883, action.Length + 10);
                 p.WriteString(action);
                 p.Write(0);
                 p.Write(0);
@@ -53,7 +49,5 @@ namespace InterceptorTest
             interceptor.Start();
             await Task.Delay(-1);
         }
-
-        internal static bool ReadKey() => Console.ReadKey() != null;
     }
 }

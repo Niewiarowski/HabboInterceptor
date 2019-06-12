@@ -27,8 +27,8 @@ namespace Interceptor.Communication
 
         private Memory<byte> _bytes { get; set; }
 
-        public Packet(Memory<byte> bytes) : this(bytes.Span) { }
-        public Packet(Span<byte> bytes) : this(bytes, out _, 0) { }
+        internal Packet(Memory<byte> bytes) : this(bytes.Span) { }
+        internal Packet(Span<byte> bytes) : this(bytes, out _, 0) { }
         private Packet(Span<byte> bytes, out int remainderIndex, int index)
         {
             remainderIndex = -1;
@@ -57,8 +57,8 @@ namespace Interceptor.Communication
             }
         }
 
-        public Packet(int length, Memory<byte> bytes) : this(length, bytes.Span) { }
-        public Packet(int length, Span<byte> bytes)
+        internal Packet(int length, Memory<byte> bytes) : this(length, bytes.Span) { }
+        internal Packet(int length, Span<byte> bytes)
         {
             Length = length - 2;
             if (length == bytes.Length)
@@ -73,7 +73,7 @@ namespace Interceptor.Communication
             }
         }
 
-        public Packet(int length, ushort header, Span<byte> bytes)
+        internal Packet(int length, ushort header, Span<byte> bytes)
         {
             Length = length - 2;
             Header = header;
@@ -83,6 +83,12 @@ namespace Interceptor.Communication
         public Packet(ushort header)
         {
             Header = header;
+        }
+
+        public Packet(ushort header, int length) : this(header)
+        {
+            _bytes = new byte[length];
+            Length = length;
         }
 
         public static IReadOnlyCollection<Packet> Parse(Memory<byte> bytes) => Parse(bytes.Span);
