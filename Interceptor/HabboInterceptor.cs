@@ -104,11 +104,12 @@ namespace Interceptor
         {
             if (Log == null) return;
 
-            foreach (var t in Log.GetInvocationList())
+            Delegate[] delegates = Log.GetInvocationList();
+            foreach (var t in delegates.Cast<LogEvent>())
             {
                 try
                 {
-                    await ((LogEvent)t)(message).ConfigureAwait(false);
+                    await t(message).ConfigureAwait(false);
                 }
                 catch { }
             }

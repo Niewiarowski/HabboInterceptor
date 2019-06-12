@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -54,17 +55,16 @@ namespace Interceptor.Interception
                 Client.Close();
                 Server.Close();
 
-                if (IsConnected)
+                if (IsConnected && Disconnnected != null)
                 {
-                    if (Disconnnected != null)
+                    Delegate[] delegates = Disconnnected.GetInvocationList();
+                    foreach (var t in delegates.Cast<Func<Task>>())
                     {
-                        Delegate[] delegates = Disconnnected.GetInvocationList();
-                        for (int i = 0; i < delegates.Length; i++)
-                            try
-                            {
-                                _ = ((Func<Task>)delegates[i])();
-                            }
-                            catch { }
+                        try
+                        {
+                            _ = t();
+                        }
+                        catch { }
                     }
                 }
 
@@ -90,11 +90,11 @@ namespace Interceptor.Interception
             if (Connected != null)
             {
                 Delegate[] delegates = Connected.GetInvocationList();
-                for (int i = 0; i < delegates.Length; i++)
+                foreach (var t in delegates.Cast<Func<Task>>())
                 {
                     try
                     {
-                        await ((Func<Task>)delegates[i])().ConfigureAwait(false);
+                        await t().ConfigureAwait(false);
                     }
                     catch { }
                 }

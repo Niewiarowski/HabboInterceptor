@@ -24,7 +24,7 @@ namespace Interceptor.Habbo
         public PacketInformation(ushort id, string hash = null, PacketValue[] structure = null)
         {
             Id = id;
-            Hash = hash?.AsMemory().Slice(0, 6) ?? null;
+            Hash = hash?.AsMemory().Slice(0, 6) ?? default; // ?? validate nulls, so... object ?? null <- is weird (if it's null, then set it null?)
             Structure = structure;
         }
     }
