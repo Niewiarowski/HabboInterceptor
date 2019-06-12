@@ -273,7 +273,7 @@ namespace Interceptor
             else await LogInternalAsync(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
         }
 
-        private async Task<bool> ReceiveAsync(NetworkStream stream, Memory<byte> buffer)
+        private async Task<bool> ReceiveAsync(Stream stream, Memory<byte> buffer)
         {
             int bytesRead = 0;
             do
