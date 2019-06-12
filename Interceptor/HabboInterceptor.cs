@@ -40,16 +40,16 @@ namespace Interceptor
             List<Interception.Interceptor> interceptors = new List<Interception.Interceptor>(8);
 
             Dictionary<string, int> hotels = new Dictionary<string, int>
-                {
-                    {"game-us.habbo.com", 38101 },
-                    {"game-es.habbo.com", 30000 },
-                    {"game-nl.habbo.com", 30000 },
-                    {"game-de.habbo.com", 30000 },
-                    {"game-br.habbo.com", 30000 },
-                    {"game-fi.habbo.com", 30000 },
-                    {"game-it.habbo.com", 30000 },
-                    {"game-tr.habbo.com", 30000 }
-                };
+            {
+                {"game-us.habbo.com", 38101 },
+                {"game-es.habbo.com", 30000 },
+                {"game-nl.habbo.com", 30000 },
+                {"game-de.habbo.com", 30000 },
+                {"game-br.habbo.com", 30000 },
+                {"game-fi.habbo.com", 30000 },
+                {"game-it.habbo.com", 30000 },
+                {"game-tr.habbo.com", 30000 }
+            };
 
             int localIpCounter = 1;
             foreach ((string host, int port) in hotels)
@@ -102,17 +102,15 @@ namespace Interceptor
 
         internal async Task LogInternalAsync(LogMessage message)
         {
-            if (Log != null)
+            if (Log == null) return;
+
+            foreach (var t in Log.GetInvocationList())
             {
-                Delegate[] delegates = Log.GetInvocationList();
-                for (int i = 0; i < delegates.Length; i++)
+                try
                 {
-                    try
-                    {
-                        await ((LogEvent)delegates[i])(message).ConfigureAwait(false);
-                    }
-                    catch { }
+                    await ((LogEvent)t)(message).ConfigureAwait(false);
                 }
+                catch { }
             }
         }
 
@@ -133,10 +131,10 @@ namespace Interceptor
         }
         public void OutgoingDetach(long detachId)
         {
-            var filter = _outgoingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
+            var (key, _) = _outgoingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
 
-            if (filter.Key.CancellationId != 0)
-                _outgoingFilters.Remove(filter.Key, out PacketEvent _);
+            if (key.CancellationId != 0)
+                _outgoingFilters.Remove(key, out PacketEvent _);
 
             if (_outgoingFilters.Count == 0)
                 Outgoing -= OutgoingFiltering;
@@ -165,11 +163,11 @@ namespace Interceptor
         }
         public void IncomingDetach(uint detachId)
         {
-            var filter = _incomingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
-            if (filter.Key.CancellationId != 0)
-                _incomingFilters.Remove(filter.Key, out PacketEvent _);
+            var (key, _) = _incomingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
+            if (key.CancellationId != 0)
+                _incomingFilters.Remove(key, out PacketEvent _);
 
-            if(_incomingFilters.Count == 0)
+            if (_incomingFilters.Count == 0)
                 Incoming -= IncomingFiltering;
 
         }
@@ -189,15 +187,14 @@ namespace Interceptor
             if (!packet.Blocked && packet.Valid)
             {
                 bool outgoing = client == Server;
-                PacketEvent packetEvent = (outgoing ? Outgoing : Incoming);
+                PacketEvent packetEvent = outgoing ? Outgoing : Incoming;
                 if (packetEvent != null)
                 {
-                    Delegate[] delegates = packetEvent.GetInvocationList();
-                    for (int i = 0; i < delegates.Length; i++)
+                    foreach (var t in packetEvent.GetInvocationList().Cast<PacketEvent>())
                     {
                         try
                         {
-                            await ((PacketEvent)delegates[i])(packet).ConfigureAwait(false);
+                            await t(packet).ConfigureAwait(false);
                         }
                         catch (Exception e)
                         {
@@ -225,7 +222,7 @@ namespace Interceptor
 
             if (RC4Extractor.TryExtractKey(out RC4Key key))
             {
-                await LogInternalAsync(new LogMessage(LogSeverity.Info, string.Format("RC4: {0}", key)));
+                await LogInternalAsync(new LogMessage(LogSeverity.Info, $"RC4: {key}"));
                 Memory<byte> decipherBuffer = new byte[decipherBytesRead];
 
                 for (int i = 0; i < 256; i++)
