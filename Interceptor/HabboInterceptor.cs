@@ -55,7 +55,7 @@ namespace Interceptor
             foreach ((string host, int port) in hotels)
             {
                 string localIp = string.Concat("127.0.0.", localIpCounter++);
-                var interceptor = new Interception.Interceptor(IPAddress.Parse(localIp), HostHelper.GetIPAddressFromHost(host), port);
+                Interception.Interceptor interceptor = new Interception.Interceptor(IPAddress.Parse(localIp), HostHelper.GetIPAddressFromHost(host), port);
                 if (!HostHelper.TryAddRedirect(localIp, host))
                 {
                     LogInternalAsync(new LogMessage(LogSeverity.Error, "Failed to add host redirect. Run me as an administrator.")).Wait();
@@ -70,7 +70,7 @@ namespace Interceptor
             Task OnConnect()
             {
                 Interception.Interceptor connectedInterceptor = null;
-                foreach (var interceptor in interceptors)
+                foreach (Interception.Interceptor interceptor in interceptors)
                 {
                     if (!interceptor.IsConnected)
                         interceptor.Stop();
@@ -105,7 +105,7 @@ namespace Interceptor
             if (Log == null) return;
 
             Delegate[] delegates = Log.GetInvocationList();
-            foreach (var t in delegates.Cast<LogEvent>())
+            foreach (LogEvent t in delegates.Cast<LogEvent>())
             {
                 try
                 {
@@ -115,24 +115,25 @@ namespace Interceptor
             }
         }
 
-        private ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _outgoingFilters;
+        private readonly ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _outgoingFilters
+            = new ConcurrentDictionary<(long, Func<Packet, bool>), PacketEvent>();
         public long OutgoingAttach(Func<Packet, bool> predicate, PacketEvent e)
         {
             long id = DateTime.Now.Ticks;
 
-            if (_outgoingFilters == null)
+            _outgoingFilters.TryAdd((id, predicate), e);
+
+            if (_outgoingFilters.Count == 1)
             {
-                _outgoingFilters = new ConcurrentDictionary<(long, Func<Packet, bool>), PacketEvent>();
                 Outgoing += OutgoingFiltering;
             }
-
-            _outgoingFilters.TryAdd((id, predicate), e);
 
             return id;
         }
         public void OutgoingDetach(long detachId)
         {
-            var (key, _) = _outgoingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
+            ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)
+                = _outgoingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
 
             if (key.CancellationId != 0)
                 _outgoingFilters.Remove(key, out PacketEvent _);
@@ -144,44 +145,50 @@ namespace Interceptor
         private Task OutgoingFiltering(Packet packet)
         {
             return _outgoingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
-                ?? false).Value?.Invoke(packet) ?? Task.CompletedTask;
+                            ?? false).Value?.Invoke(packet);
         }
 
-        private ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _incomingFilters;
+        private readonly ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _incomingFilters
+            = new ConcurrentDictionary<(long, Func<Packet, bool>), PacketEvent>();
         public long IncomingAttach(Func<Packet, bool> predicate, PacketEvent e)
         {
             long id = DateTime.Now.Ticks;
 
-            if (_incomingFilters == null)
+            _incomingFilters.TryAdd((id, predicate), e);
+
+            if (_incomingFilters.Count == 1)
             {
-                _incomingFilters = new ConcurrentDictionary<(long, Func<Packet, bool>), PacketEvent>();
                 Incoming += IncomingFiltering;
             }
-
-            _incomingFilters.TryAdd((id, predicate), e);
 
             return id;
         }
         public void IncomingDetach(uint detachId)
         {
-            var (key, _) = _incomingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
+            ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)
+                = _incomingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
+
             if (key.CancellationId != 0)
                 _incomingFilters.Remove(key, out PacketEvent _);
 
             if (_incomingFilters.Count == 0)
                 Incoming -= IncomingFiltering;
-
         }
         private Task IncomingFiltering(Packet packet)
         {
-            _incomingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
-                ?? false).Value?.Invoke(packet);
-
-            return Task.CompletedTask;
+            return _incomingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
+                            ?? false).Value?.Invoke(packet);
         }
 
-        public Task SendToServerAsync(Packet packet) => SendInternalAsync(Server, packet);
-        public Task SendToClientAsync(Packet packet) => SendInternalAsync(Client, packet);
+        public Task SendToServerAsync(Packet packet)
+        {
+            return SendInternalAsync(Server, packet);
+        }
+
+        public Task SendToClientAsync(Packet packet)
+        {
+            return SendInternalAsync(Client, packet);
+        }
 
         internal async Task SendInternalAsync(TcpClient client, Packet packet)
         {
@@ -191,7 +198,7 @@ namespace Interceptor
                 PacketEvent packetEvent = outgoing ? Outgoing : Incoming;
                 if (packetEvent != null)
                 {
-                    foreach (var t in packetEvent.GetInvocationList().Cast<PacketEvent>())
+                    foreach (PacketEvent t in packetEvent.GetInvocationList().Cast<PacketEvent>())
                     {
                         try
                         {
@@ -288,7 +295,7 @@ namespace Interceptor
             Memory<byte> buffer = new byte[3072];
             Memory<byte> lengthBuffer = new byte[4];
 
-            var clientStream = client.GetStream();
+            NetworkStream clientStream = client.GetStream();
             try
             {
                 while (IsConnected)

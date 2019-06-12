@@ -32,7 +32,7 @@ namespace InterceptorTest
             };
 
             //NEW
-            interceptor.OutgoingAttach(p => p.Hash.Span.Equals("3ee5fd", StringComparison.Ordinal), async packet => //returns uint detachId
+            interceptor.OutgoingAttach(p => p.Hash.Equals("1d79f1"), async packet => //returns uint detachId
             {
                 string action = string.Empty;
                 for (int i = 0; i <= 2; i++)
