@@ -105,7 +105,7 @@ namespace Interceptor
             if (Log == null) return;
 
             Delegate[] delegates = Log.GetInvocationList();
-            foreach (LogEvent t in delegates.Cast<LogEvent>())
+            foreach (LogEvent t in delegates)
             {
                 try
                 {
@@ -124,9 +124,7 @@ namespace Interceptor
             _outgoingFilters.TryAdd((id, predicate), e);
 
             if (_outgoingFilters.Count == 1)
-            {
                 Outgoing += OutgoingFiltering;
-            }
 
             return id;
         }
@@ -144,8 +142,7 @@ namespace Interceptor
 
         private Task OutgoingFiltering(Packet packet)
         {
-            return _outgoingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
-                            ?? false).Value?.Invoke(packet);
+            return _outgoingFilters.FirstOrDefault(p => (p.Key.Predicate?.Invoke(packet)).Value).Value?.Invoke(packet) ?? Task.CompletedTask;
         }
 
         private readonly ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _incomingFilters
@@ -157,9 +154,7 @@ namespace Interceptor
             _incomingFilters.TryAdd((id, predicate), e);
 
             if (_incomingFilters.Count == 1)
-            {
                 Incoming += IncomingFiltering;
-            }
 
             return id;
         }
@@ -177,7 +172,7 @@ namespace Interceptor
         private Task IncomingFiltering(Packet packet)
         {
             return _incomingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
-                            ?? false).Value?.Invoke(packet);
+                            ?? false).Value?.Invoke(packet) ?? Task.CompletedTask;
         }
 
         public Task SendToServerAsync(Packet packet)
@@ -198,7 +193,7 @@ namespace Interceptor
                 PacketEvent packetEvent = outgoing ? Outgoing : Incoming;
                 if (packetEvent != null)
                 {
-                    foreach (PacketEvent t in packetEvent.GetInvocationList().Cast<PacketEvent>())
+                    foreach (PacketEvent t in packetEvent.GetInvocationList())
                     {
                         try
                         {

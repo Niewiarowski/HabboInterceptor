@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 using Interceptor;
 using Interceptor.Communication;
+using Interceptor.Memory.Extensions;
 
 namespace InterceptorTest
 {
@@ -32,7 +33,7 @@ namespace InterceptorTest
             };
 
             //NEW
-            interceptor.OutgoingAttach(p => p.Hash.Equals("1d79f1"), async packet => //returns uint detachId
+            interceptor.OutgoingAttach(p => p.Hash.EqualsString("3ee5fd"), async packet => //returns uint detachId
             {
                 string action = string.Empty;
                 for (int i = 0; i <= 2; i++)

@@ -58,7 +58,7 @@ namespace Interceptor.Interception
                 if (IsConnected && Disconnnected != null)
                 {
                     Delegate[] delegates = Disconnnected.GetInvocationList();
-                    foreach (var t in delegates.Cast<Func<Task>>())
+                    foreach (Func<Task> t in delegates)
                     {
                         try
                         {
@@ -90,7 +90,7 @@ namespace Interceptor.Interception
             if (Connected != null)
             {
                 Delegate[] delegates = Connected.GetInvocationList();
-                foreach (var t in delegates.Cast<Func<Task>>())
+                foreach (Func<Task> t in delegates)
                 {
                     try
                     {
