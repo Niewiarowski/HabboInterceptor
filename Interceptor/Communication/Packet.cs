@@ -153,7 +153,7 @@ namespace Interceptor.Communication
             return result;
         }
 
-        public T ToStruct<T>() where T : struct
+        public T ToObject<T>() where T : class
         {
             int oldPosition = 0;
             T result = StructParser.Read<T>(this);
@@ -209,7 +209,7 @@ namespace Interceptor.Communication
                 Write(span, position);
             }
         }
-        public void FromStruct<T>(T value) where T : struct
+        public void FromObject<T>(T value) where T : class
         {
             int oldPosition = 0;
             StructParser.Write<T>(this, value);

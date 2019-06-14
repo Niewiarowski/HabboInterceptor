@@ -130,15 +130,16 @@ namespace Interceptor
             return id;
         }
 
-        public long OutgoingAttach<T>(Func<Packet, bool> predicate, Func<T, Task<T>> e) where T : struct
+        public long OutgoingAttach<T>(Func<Packet, bool> predicate, Func<T, Task<bool>> e) where T : class
         {
             StructParser.GetReader(typeof(T));
             StructParser.GetWriter(typeof(T));
 
             return OutgoingAttach(predicate, async packet =>
             {
-                T result = packet.ToStruct<T>();
-                packet.FromStruct(await e(result));
+                T result = packet.ToObject<T>();
+                packet.Blocked = !await e(result);
+                packet.FromObject(result);
             });
         }
 
@@ -173,15 +174,16 @@ namespace Interceptor
             return id;
         }
 
-        public long IncomingAttach<T>(Func<Packet, bool> predicate, Func<T, Task<T>> e) where T : struct
+        public long IncomingAttach<T>(Func<Packet, bool> predicate, Func<T, Task<bool>> e) where T : class
         {
             StructParser.GetReader(typeof(T));
             StructParser.GetWriter(typeof(T));
 
             return IncomingAttach(predicate, async packet =>
             {
-                T result = packet.ToStruct<T>();
-                packet.FromStruct(await e(result));
+                T result = packet.ToObject<T>();
+                packet.Blocked = !await e(result);
+                packet.FromObject(result);
             });
         }
 

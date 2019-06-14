@@ -6,7 +6,7 @@ using Interceptor.Memory.Extensions;
 
 namespace InterceptorTest
 {
-    public struct TalkPacket
+    public class TalkPacket
     {
         public string Text { get; set; }
         public int Unk1 { get; set; }
@@ -41,7 +41,7 @@ namespace InterceptorTest
             interceptor.OutgoingAttach<TalkPacket>(p => p.Hash.EqualsString("68d1be"), p =>
             {
                 p.Text = "HabboInterceptor";
-                return Task.FromResult(p);
+                return Task.FromResult(true);
             });
 
             interceptor.Start();
