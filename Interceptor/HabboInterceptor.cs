@@ -10,6 +10,7 @@ using System.Collections.Concurrent;
 using Interceptor.Habbo;
 using Interceptor.Memory;
 using Interceptor.Logging;
+using Interceptor.Parsing;
 using Interceptor.Encryption;
 using Interceptor.Interception;
 using Interceptor.Communication;
@@ -128,6 +129,19 @@ namespace Interceptor
 
             return id;
         }
+
+        public long OutgoingAttach<T>(Func<Packet, bool> predicate, Func<T, Task<T>> e) where T : struct
+        {
+            StructParser.GetReader(typeof(T));
+            StructParser.GetWriter(typeof(T));
+
+            return OutgoingAttach(predicate, async packet =>
+            {
+                T result = packet.ToStruct<T>();
+                packet.FromStruct(await e(result));
+            });
+        }
+
         public void OutgoingDetach(long detachId)
         {
             ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)
@@ -158,6 +172,19 @@ namespace Interceptor
 
             return id;
         }
+
+        public long IncomingAttach<T>(Func<Packet, bool> predicate, Func<T, Task<T>> e) where T : struct
+        {
+            StructParser.GetReader(typeof(T));
+            StructParser.GetWriter(typeof(T));
+
+            return IncomingAttach(predicate, async packet =>
+            {
+                T result = packet.ToStruct<T>();
+                packet.FromStruct(await e(result));
+            });
+        }
+
         public void IncomingDetach(uint detachId)
         {
             ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)

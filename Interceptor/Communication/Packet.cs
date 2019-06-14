@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using Interceptor.Habbo;
+using Interceptor.Parsing;
 
 namespace Interceptor.Communication
 {
@@ -152,6 +153,15 @@ namespace Interceptor.Communication
             return result;
         }
 
+        public T ToStruct<T>() where T : struct
+        {
+            int oldPosition = 0;
+            T result = StructParser.Read<T>(this);
+            Position = oldPosition;
+
+            return result;
+        }
+
         public string ReadString(int position = -1)
         {
             int index = GetSafeIndex(position);
@@ -184,10 +194,26 @@ namespace Interceptor.Communication
 
         public void Write<T>(T value, int position = -1) where T : struct
         {
-            Span<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref value, 1));
-            if (BitConverter.IsLittleEndian && (value is int || value is short || value is long))
-                span.Reverse();
-            Write(span, position);
+            Type type = typeof(T);
+            if (type.IsValueType && !type.IsEnum && !type.IsPrimitive)
+            {
+                StructParser.Write(this, value);
+                if (Position != Length)
+                    Resize(Position);
+            }
+            else
+            {
+                Span<byte> span = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref value, 1));
+                if (BitConverter.IsLittleEndian && (value is int || value is short || value is long))
+                    span.Reverse();
+                Write(span, position);
+            }
+        }
+        public void FromStruct<T>(T value) where T : struct
+        {
+            int oldPosition = 0;
+            StructParser.Write<T>(this, value);
+            Position = oldPosition;
         }
 
         public void WriteString(ReadOnlySpan<char> buffer, int position = -1)

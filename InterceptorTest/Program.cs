@@ -2,11 +2,17 @@
 using System.Threading.Tasks;
 
 using Interceptor;
-using Interceptor.Communication;
 using Interceptor.Memory.Extensions;
 
 namespace InterceptorTest
 {
+    public struct TalkPacket
+    {
+        public string Text { get; set; }
+        public int Unk1 { get; set; }
+        public int Unk2 { get; set; }
+    }
+
     internal class Program
     {
         internal static async Task Main()
@@ -32,19 +38,10 @@ namespace InterceptorTest
                 return Task.CompletedTask;
             };
 
-            //NEW
-            interceptor.OutgoingAttach(p => p.Hash.EqualsString("3ee5fd"), async packet => //returns uint detachId
+            interceptor.OutgoingAttach<TalkPacket>(p => p.Hash.EqualsString("68d1be"), p =>
             {
-                string action = string.Empty;
-                for (int i = 0; i <= 2; i++)
-                    action = packet.ReadString();
-
-                // Call Packet(header, length) to avoid resizing internal byte array...
-                var p = new Packet(2883, action.Length + 10);
-                p.WriteString(action);
-                p.Write(0);
-                p.Write(0);
-                await interceptor.SendToServerAsync(p);
+                p.Text = "HabboInterceptor";
+                return Task.FromResult(p);
             });
 
             interceptor.Start();
