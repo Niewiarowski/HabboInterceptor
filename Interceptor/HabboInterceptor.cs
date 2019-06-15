@@ -28,6 +28,7 @@ namespace Interceptor
         public string Production { get; private set; }
         public bool PauseIncoming { get; set; }
         public bool PauseOutgoing { get; set; }
+        public bool InterceptCreatedPackets { get; set; }
 
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
@@ -143,6 +144,15 @@ namespace Interceptor
             });
         }
 
+        public long OutgoingAttach<T>(Func<T, Task<bool>> e) where T : class
+        {
+            return OutgoingAttach((Packet packet) =>
+            {
+                Packets.TryResolveHeader(typeof(T), out ushort header, true);
+                return packet.Header == header;
+            }, e);
+        }
+
         public void OutgoingDetach(long detachId)
         {
             ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)
@@ -187,6 +197,15 @@ namespace Interceptor
             });
         }
 
+        public long IncomingAttach<T>(Func<T, Task<bool>> e) where T : class
+        {
+            return IncomingAttach((Packet packet) =>
+            {
+                Packets.TryResolveHeader(typeof(T), out ushort header, false);
+                return packet.Header == header;
+            }, e);
+        }
+
         public void IncomingDetach(uint detachId)
         {
             ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)
@@ -206,31 +225,53 @@ namespace Interceptor
 
         public Task SendToServerAsync(Packet packet)
         {
-            return SendInternalAsync(Server, packet);
+            return SendInternalAsync(Server, packet, true);
+        }
+
+        public Task SendToServerAsync<T>(T packet) where T : class
+        {
+            return SendInternalAsync(Server, packet, true);
         }
 
         public Task SendToClientAsync(Packet packet)
         {
-            return SendInternalAsync(Client, packet);
+            return SendInternalAsync(Client, packet, true);
+        }
+        public Task SendToClientAsync<T>(T packet) where T : class
+        {
+            return SendInternalAsync(Client, packet, true);
         }
 
-        internal async Task SendInternalAsync(TcpClient client, Packet packet)
+        internal Task SendInternalAsync<T>(TcpClient client, T packet, bool created = false) where T : class
+        {
+            if (!Packets.TryResolveHeader(typeof(T), out ushort header, client == Server))
+                throw new ArgumentException("Argument \"packet\" must have a PacketAttribute attribute.");
+
+            Packet resultPacket = new Packet(header);
+            resultPacket.FromObject(packet);
+            return SendInternalAsync(client, resultPacket, created);
+        }
+
+        internal async Task SendInternalAsync(TcpClient client, Packet packet, bool created = false)
         {
             if (!packet.Blocked && packet.Valid)
             {
                 bool outgoing = client == Server;
-                PacketEvent packetEvent = outgoing ? Outgoing : Incoming;
-                if (packetEvent != null)
+                if (((created && InterceptCreatedPackets) || !created))
                 {
-                    foreach (PacketEvent t in packetEvent.GetInvocationList())
+                    PacketEvent packetEvent = outgoing ? Outgoing : Incoming;
+                    if (packetEvent != null)
                     {
-                        try
+                        foreach (PacketEvent t in packetEvent.GetInvocationList())
                         {
-                            await t(packet).ConfigureAwait(false);
-                        }
-                        catch (Exception e)
-                        {
-                            await LogInternalAsync(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
+                            try
+                            {
+                                await t(packet).ConfigureAwait(false);
+                            }
+                            catch (Exception e)
+                            {
+                                await LogInternalAsync(new LogMessage(LogSeverity.Warning, "An exception was thrown in a packet event handler", e));
+                            }
                         }
                     }
                 }
@@ -365,15 +406,10 @@ namespace Interceptor
                         packet.Structure = packetInfo.Structure;
                     }
 
-                    if (outgoing)
-                    {
-                        if (outgoingCount == 1)
-                            Production = packet.ReadString(0);
+                    if (outgoing && outgoingCount == 1)
+                        Production = packet.ReadString(0);
 
-                        await SendInternalAsync(Server, packet);
-                    }
-                    else
-                        await SendInternalAsync(Client, packet);
+                    await SendInternalAsync(outgoing ? Server : Client, packet);
                 }
             }
             catch (IOException) { }

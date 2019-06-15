@@ -2,15 +2,24 @@
 using System.Threading.Tasks;
 
 using Interceptor;
+using Interceptor.Attributes;
 using Interceptor.Memory.Extensions;
 
 namespace InterceptorTest
 {
+    [Packet("68d1be")]
     public class TalkPacket
     {
         public string Text { get; set; }
         public int Unk1 { get; set; }
         public int Unk2 { get; set; }
+    }
+
+    [Packet("f76a21")]
+    public class WalkPacket
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
     }
 
     internal class Program
@@ -38,9 +47,18 @@ namespace InterceptorTest
                 return Task.CompletedTask;
             };
 
-            interceptor.OutgoingAttach<TalkPacket>(p => p.Hash.EqualsString("68d1be"), p =>
+            interceptor.OutgoingAttach<TalkPacket>(p =>
             {
                 p.Text = "HabboInterceptor";
+                return Task.FromResult(true);
+            });
+
+            interceptor.OutgoingAttach<WalkPacket>(p =>
+            {
+                interceptor.SendToServerAsync(new TalkPacket
+                {
+                    Text = $"I'm moving to X: {p.X} Y: {p.Y}."
+                });
                 return Task.FromResult(true);
             });
 
