@@ -58,6 +58,9 @@ namespace Interceptor.Communication
             }
         }
 
+        public static Packet FromBytes(int packetLength, Memory<byte> bytes) => FromBytes(packetLength, bytes.Span);
+        public static Packet FromBytes(int packetLength, Span<byte> bytes) => new Packet(packetLength, bytes);
+
         internal Packet(int length, Memory<byte> bytes) : this(length, bytes.Span) { }
         internal Packet(int length, Span<byte> bytes)
         {
