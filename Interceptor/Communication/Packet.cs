@@ -156,11 +156,13 @@ namespace Interceptor.Communication
             return result;
         }
 
-        public T ToObject<T>() where T : class
+        public T ToObject<T>(bool restorePosition = true) where T : class
         {
             int oldPosition = 0;
             T result = StructParser.Read<T>(this);
-            Position = oldPosition;
+
+            if (restorePosition)
+                Position = oldPosition;
 
             return result;
         }
@@ -173,7 +175,7 @@ namespace Interceptor.Communication
             if (index + length + 2 > _bytes.Length)
                 return null;
 
-            string result = Encoding.ASCII.GetString(_bytes.Span.Slice(index + 2, length));
+            string result = Encoding.UTF8.GetString(_bytes.Span.Slice(index + 2, length));
 
             if (position == -1)
                 Position += length;
@@ -212,11 +214,13 @@ namespace Interceptor.Communication
                 Write(span, position);
             }
         }
-        public void FromObject<T>(T value) where T : class
+        public void FromObject<T>(T value, bool restorePosition = true) where T : class
         {
             int oldPosition = 0;
             StructParser.Write<T>(this, value);
-            Position = oldPosition;
+
+            if (restorePosition)
+                Position = oldPosition;
         }
 
         public void WriteString(ReadOnlySpan<char> buffer, int position = -1)
@@ -224,7 +228,7 @@ namespace Interceptor.Communication
             int index = GetSafeIndex(position);
 
             Span<byte> bufferBytes = stackalloc byte[buffer.Length];
-            Encoding.ASCII.GetBytes(buffer, bufferBytes);
+            Encoding.UTF8.GetBytes(buffer, bufferBytes);
             Write((short)buffer.Length, index);
             Write(bufferBytes, index + 2);
 

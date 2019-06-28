@@ -95,15 +95,25 @@ namespace Interceptor.Parsing
             foreach (PropertyInfo property in type.GetProperties())
             {
                 Type propType = property.PropertyType;
+
+                string generateRead(Type type)
+                {
+                    if (propType.IsClass)
+                        return string.Format("ToObject<{0}>(false);\n", type.GetCleanFullName());
+                    else
+                        return string.Format("Read<{0}>();\n", type.GetCleanFullName());
+                }
+
                 if (propType == typeof(string))
                     sb.AppendFormat("result.{0} = ReadString();\n", property.Name);
                 else if (propType.IsArray)
                 {
                     Type arrayType = propType.GetElementType();
-                    sb.AppendFormat("result.{0} = new {1}[Read<int>()];\nfor(int i = 0; i < result.{0}.Length; i++)\n{{\nresult.{0}[i] = Read<{1}>();\n}}\n", property.Name, arrayType.GetCleanFullName());
+                    sb.AppendFormat("result.{0} = new {1}[Read<int>()];\nfor(int i = 0; i < result.{0}.Length; i++)\n{{\nresult.{0}[i] = {2}}}\n", property.Name, arrayType.GetCleanFullName(), generateRead(arrayType));
+
                 }
                 else
-                    sb.AppendFormat("result.{0} = Read<{1}>();\n", property.Name, propType.GetCleanFullName());
+                    sb.AppendFormat("result.{0} = {1}", property.Name, generateRead(propType));
             }
 
             sb.Append("return result;");
@@ -118,15 +128,26 @@ namespace Interceptor.Parsing
             foreach (PropertyInfo property in type.GetProperties())
             {
                 Type propType = property.PropertyType;
+
+                string generateWrite(string value, Type type)
+                {
+                    if (propType.IsClass)
+                        return string.Format("Packet.FromObject<{0}>({1}, false);\n", type.GetCleanFullName(), value);
+                    else
+                        return string.Format("Packet.Write<{0}>({1});\n", type.GetCleanFullName(), value);
+                }
+
                 if (propType == typeof(string))
                     sb.AppendFormat("Packet.WriteString(value.{0});\n", property.Name);
                 else if (propType.IsArray)
                 {
                     Type arrayType = propType.GetElementType();
-                    sb.AppendFormat("Packet.Write<int>(value.{0}.Length);\nfor(int i = 0; i < value.{0}.Length; i++)\n{{\nPacket.Write<{1}>(value.{0}[i]);}}\n", propType.Name, arrayType.GetCleanFullName());
+                    //sb.AppendFormat("Packet.Write<int>(value.{0}.Length);\nfor(int i = 0; i < value.{0}.Length; i++)\n{{\nPacket.{2}<{1}>(value.{0}[i]);}}\n", propType.Name, arrayType.GetCleanFullName());
+                    sb.AppendFormat("Packet.Write<int>(value.{0}.Length);\nfor(int i = 0; i < value.{0}.Length; i++)\n{{\n{2}}}\n", property.Name, arrayType.GetCleanFullName(), generateWrite(string.Format("value.{0}[i]", property.Name), arrayType));
                 }
                 else
-                    sb.AppendFormat("Packet.Write<{0}>(value.{1});\n", propType.GetCleanFullName(), property.Name);
+                    //sb.AppendFormat("Packet.{2}<{0}>(value.{1}, {3});\n", propType.GetCleanFullName(), property.Name, propType.IsClass ? "FromObject" : "Write", propType.IsClass ? "false" : "true");
+                    sb.Append(generateWrite(string.Concat("value.", property.Name), propType));
             }
 
             return sb.ToString();
