@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 
 using Interceptor;
 using Interceptor.Attributes;
-using Interceptor.Memory.Extensions;
 
 namespace InterceptorTest
 {

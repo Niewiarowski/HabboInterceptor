@@ -43,8 +43,8 @@ namespace Interceptor
 
             Dictionary<string, int> hotels = new Dictionary<string, int>
             {
-                {"game-us.habbo.com", 38101 },
                 {"game-es.habbo.com", 30000 },
+                {"game-us.habbo.com", 38101 },
                 {"game-nl.habbo.com", 30000 },
                 {"game-de.habbo.com", 30000 },
                 {"game-br.habbo.com", 30000 },

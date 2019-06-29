@@ -227,13 +227,13 @@ namespace Interceptor.Communication
         {
             int index = GetSafeIndex(position);
 
-            Span<byte> bufferBytes = stackalloc byte[buffer.Length];
+            Span<byte> bufferBytes = stackalloc byte[Encoding.UTF8.GetByteCount(buffer)];
             Encoding.UTF8.GetBytes(buffer, bufferBytes);
-            Write((short)buffer.Length, index);
+            Write((short)bufferBytes.Length, index);
             Write(bufferBytes, index + 2);
 
             if (position == -1)
-                Position += buffer.Length + 2;
+                Position += bufferBytes.Length + 2;
         }
 
         public void ReplaceString(ReadOnlySpan<char> buffer, int position = -1)
