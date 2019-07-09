@@ -19,7 +19,7 @@ namespace Interceptor.Logging
         public override string ToString()
         {
             StringBuilder builder = new StringBuilder();
-            builder.AppendFormat("[{0}] ", DateTime.Now);
+            builder.AppendFormat("[{0}] ", DateTime.Now.ToString());
             builder.Append(Message);
             if(Exception != null)
             {
