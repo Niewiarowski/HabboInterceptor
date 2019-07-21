@@ -107,7 +107,7 @@ namespace Interceptor.Memory
 
                 do
                 {
-                    if (ReadProcessMemory(CurrentHandle, (long)memoryPage.BaseAddress, page, (ulong)page.Length, out IntPtr numBytesRead))
+                    if (ReadProcessMemory(CurrentHandle, (long)memoryPage.BaseAddress + (long)bytesRead, page, Math.Min((ulong)page.Length, memoryPage.RegionSize - bytesRead), out IntPtr numBytesRead))
                     {
                         bool validKey = false;
                         for (int i = 0; i < page.Length - 1024; i += 4)
