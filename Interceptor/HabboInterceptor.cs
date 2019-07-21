@@ -117,6 +117,38 @@ namespace Interceptor
             }
         }
 
+        public async Task<T> WaitForAsync<T>(bool outgoing) where T : class
+        {
+            if(!Packets.TryResolveHeader(typeof(T), out ushort header, outgoing))
+                throw new ArgumentException("Type T must have a PacketAttribute attribute.");
+
+            return (await WaitForInternalAsync(null, header, outgoing)).ToObject<T>();
+        }
+
+        public Task<Packet> WaitForIncomingAsync(ReadOnlyMemory<char> hash) => WaitForInternalAsync(hash, 0, false);
+        public Task<Packet> WaitForOutgoingAsync(ReadOnlyMemory<char> hash) => WaitForInternalAsync(hash, 0, true);
+        public Task<Packet> WaitForIncomingAsync(ushort header) => WaitForInternalAsync(null, header, false);
+        public Task<Packet> WaitForOutgoingAsync(ushort header) => WaitForInternalAsync(null, header, true);
+
+        internal async Task<Packet> WaitForInternalAsync(ReadOnlyMemory<char> hash, ushort header, bool outgoing)
+        {
+            TaskCompletionSource<Packet> result = new TaskCompletionSource<Packet>();
+            Task attach(Packet packet)
+            {
+                if ((!hash.IsEmpty && packet.Hash.Span.Equals(hash.Span, StringComparison.OrdinalIgnoreCase)) || (hash.IsEmpty && packet.Header == header))
+                    result.SetResult(packet);
+
+                return Task.CompletedTask;
+            }
+
+            var @event = outgoing ? Outgoing : Incoming;
+            @event += attach;
+            Packet packet = await result.Task.ConfigureAwait(false);
+            @event -= attach;
+
+            return packet;
+        }
+
         private readonly ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _outgoingFilters
             = new ConcurrentDictionary<(long, Func<Packet, bool>), PacketEvent>();
         public long OutgoingAttach(Func<Packet, bool> predicate, PacketEvent e)
