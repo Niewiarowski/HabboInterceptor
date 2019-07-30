@@ -123,8 +123,8 @@ namespace Interceptor.Communication
             Span<byte> lengthSlice = finalPacket.Slice(0, 4);
             Span<byte> headerSlice = finalPacket.Slice(4, 2);
             Span<byte> payloadSlice = finalPacket.Slice(6);
-            BitConverter.GetBytes(Length + 2).CopyTo(lengthSlice);
-            BitConverter.GetBytes(Header).CopyTo(headerSlice);
+            BitConverter.TryWriteBytes(lengthSlice, Length + 2);
+            BitConverter.TryWriteBytes(headerSlice, Header);
             _bytes.Span.CopyTo(payloadSlice);
 
             if (BitConverter.IsLittleEndian)
