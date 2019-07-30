@@ -14,6 +14,7 @@ using Interceptor.Parsing;
 using Interceptor.Encryption;
 using Interceptor.Interception;
 using Interceptor.Communication;
+using System.Buffers;
 
 namespace Interceptor
 {
@@ -316,11 +317,14 @@ namespace Interceptor
                         packet.Header = packetInfo.Id;
                     }
 
-                    Memory<byte> packetBytes = packet.Construct();
+                    byte[] packetBytes = ArrayPool<byte>.Shared.Rent(packet.ConstructLength);
+                    packet.ConstructTo(packetBytes);
+
                     if (outgoing)
-                        CipherKey?.Cipher(packetBytes);
+                        CipherKey?.Cipher(packetBytes.AsSpan());
 
                     await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
+                    ArrayPool<byte>.Shared.Return(packetBytes);
                 }
             }
         }
