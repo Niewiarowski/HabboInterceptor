@@ -310,9 +310,16 @@ namespace Interceptor
 
                 if (!packet.Blocked && packet.Valid)
                 {
+                    if(packet.Header == 0 && !packet.Hash.IsEmpty)
+                    {
+                        PacketInformation packetInfo = Packets.GetPacketInformation(packet.Hash.Span, outgoing);
+                        packet.Header = packetInfo.Id;
+                    }
+
                     Memory<byte> packetBytes = packet.Construct();
                     if (outgoing)
                         CipherKey?.Cipher(packetBytes);
+
                     await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
                 }
             }

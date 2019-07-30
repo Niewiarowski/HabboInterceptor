@@ -12,7 +12,7 @@ namespace Interceptor.Communication
     {
         public int Length { get; private set; }
         internal int ConstructLength => Length + 6;
-        public ushort Header { get; }
+        public ushort Header { get; internal set; }
         public ReadOnlyMemory<byte> Bytes => _bytes;
         public bool Blocked { get; set; }
         public bool Valid => Length == _bytes.Length;
@@ -82,6 +82,17 @@ namespace Interceptor.Communication
             Length = length - 2;
             Header = header;
             _bytes = bytes.ToArray();
+        }
+
+        public Packet(ReadOnlyMemory<char> hash)
+        {
+            Hash = hash;
+        }
+
+        public Packet(ReadOnlyMemory<char> hash, int length) : this(hash)
+        {
+            _bytes = new byte[length];
+            Length = length;
         }
 
         public Packet(ushort header)
