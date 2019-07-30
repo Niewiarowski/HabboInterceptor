@@ -10,10 +10,4 @@
     <ProjectReference Include="..\Interceptor\Interceptor.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="System.Windows.Forms">
-      <HintPath>..\..\..\..\Desktop\System.Windows.Forms.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>
