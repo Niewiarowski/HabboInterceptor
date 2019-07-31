@@ -317,14 +317,15 @@ namespace Interceptor
                         packet.Header = packetInfo.Id;
                     }
 
-                    byte[] packetBytes = ArrayPool<byte>.Shared.Rent(packet.ConstructLength);
+                    byte[] packetBytesArray = ArrayPool<byte>.Shared.Rent(packet.ConstructLength);
+                    Memory<byte> packetBytes = packetBytesArray.AsMemory().Slice(0, packet.ConstructLength); 
                     packet.ConstructTo(packetBytes);
 
                     if (outgoing)
-                        CipherKey?.Cipher(packetBytes.AsSpan());
+                        CipherKey?.Cipher(packetBytes);
 
                     await client.GetStream().WriteAsync(packetBytes).ConfigureAwait(false);
-                    ArrayPool<byte>.Shared.Return(packetBytes);
+                    ArrayPool<byte>.Shared.Return(packetBytesArray);
                 }
             }
         }

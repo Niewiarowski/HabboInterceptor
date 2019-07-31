@@ -118,6 +118,7 @@ namespace Interceptor.Communication
             return result.AsReadOnly();
         }
 
+        internal void ConstructTo(Memory<byte> finalPacket) => ConstructTo(finalPacket.Span);
         internal void ConstructTo(Span<byte> finalPacket)
         {
             Span<byte> lengthSlice = finalPacket.Slice(0, 4);
