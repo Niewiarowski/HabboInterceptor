@@ -14,9 +14,10 @@ namespace Interceptor.Habbo
     {
         public PacketInformation[] InMessages { get; } = new PacketInformation[4001];
         public PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
+
         private Dictionary<Type, ushort> _classHeaders { get; } = new Dictionary<Type, ushort>();
 
-        private bool HasDisassembled { get; set; }
+        private string ClientUrl { get; set; }
 
         public PacketInformation GetPacketInformation(ReadOnlySpan<char> hash, bool outgoing)
         {
@@ -30,7 +31,7 @@ namespace Interceptor.Habbo
 
         public bool TryResolveHeader(Type type, out ushort header, bool outgoing)
         {
-            if (!HasDisassembled)
+            if (ClientUrl == null)
             {
                 header = ushort.MaxValue;
                 return false;
@@ -67,10 +68,10 @@ namespace Interceptor.Habbo
 
         public async Task DisassembleAsync(string clientUrl)
         {
-            if (HasDisassembled)
+            if (ClientUrl != clientUrl)
                 return;
 
-            HasDisassembled = true;
+            ClientUrl = clientUrl;
 
             using WebClient wc = new WebClient();
             string swfUrl = string.Concat(clientUrl, "Habbo.swf");

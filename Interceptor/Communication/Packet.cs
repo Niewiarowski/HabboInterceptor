@@ -195,6 +195,18 @@ namespace Interceptor.Communication
             return result;
         }
 
+        public bool TryReadString(Span<char> destination)
+        {
+            int length = Read<short>(Position - 2);
+            if (length != destination.Length)
+                return false;
+
+            Encoding.ASCII.GetBytes(destination, _bytes.Span.Slice(Position, length));
+            Position += length;
+
+            return true;
+        }
+
         public void Write(Span<byte> buffer, int position = -1)
         {
             int index = GetSafeIndex(position);
