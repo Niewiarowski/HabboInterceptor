@@ -33,16 +33,7 @@ namespace Interceptor
 
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
-
-        public HabboInterceptor() : base(IPAddress.Loopback, null, 0)
-        {
-        }
-
-        public override void Start()
-        {
-            List<Interception.Interceptor> interceptors = new List<Interception.Interceptor>(8);
-
-            Dictionary<string, int> hotels = new Dictionary<string, int>
+        private readonly Dictionary<string, int> Hotels = new Dictionary<string, int>
             {
                 {"game-es.habbo.com", 30000 },
                 {"game-us.habbo.com", 38101 },
@@ -54,8 +45,16 @@ namespace Interceptor
                 {"game-tr.habbo.com", 30000 }
             };
 
+        public HabboInterceptor() : base(IPAddress.Loopback, null, 0)
+        {
+        }
+
+        public override void Start()
+        {
+            List<Interception.Interceptor> interceptors = new List<Interception.Interceptor>(8);
+
             int localIpCounter = 1;
-            foreach ((string host, int port) in hotels)
+            foreach ((string host, int port) in Hotels)
             {
                 string localIp = string.Concat("127.0.0.", localIpCounter++);
                 Interception.Interceptor interceptor = new Interception.Interceptor(IPAddress.Parse(localIp), HostHelper.GetIPAddressFromHost(host), port);
@@ -102,6 +101,9 @@ namespace Interceptor
             HostHelper.TryRemoveRedirects();
             base.Stop();
         }
+
+        public void AddHotel(string hostname, int port)
+            => Hotels.Add(hostname, port);
 
         internal async Task LogInternalAsync(LogMessage message)
         {
