@@ -18,13 +18,13 @@ namespace Interceptor.Habbo
     public struct PacketInformation
     {
         public ushort Id { get; }
-        public ReadOnlyMemory<char> Hash { get; }
+        public ulong Hash { get; }
         public PacketValue[] Structure { get; }
 
         public PacketInformation(ushort id, string hash = null, PacketValue[] structure = null)
         {
             Id = id;
-            Hash = hash?.AsMemory().Slice(0, 6) ?? default; // ?? validate nulls, so... object ?? null <- is weird (if it's null, then set it null?)
+            Hash = MemoryMarshal.Cast<char, ulong>(hash.AsSpan())[0]; // ?? validate nulls, so... object ?? null <- is weird (if it's null, then set it null?)
             Structure = structure;
         }
     }

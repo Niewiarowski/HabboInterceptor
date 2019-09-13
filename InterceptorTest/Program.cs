@@ -6,7 +6,7 @@ using Interceptor.Attributes;
 
 namespace InterceptorTest
 {
-    [Packet("68d1be")]
+    [Packet(hash: 3670070)]//"68d1be")]
     public class TalkPacket
     {
         public string Text { get; set; }
@@ -14,7 +14,7 @@ namespace InterceptorTest
         public int Unk2 { get; set; }
     }
 
-    [Packet("f76a21")]
+    [Packet(hash: 27303304672772198)]//"f76a21")]
     public class WalkPacket
     {
         public int X { get; set; }

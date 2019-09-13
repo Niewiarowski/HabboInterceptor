@@ -7,17 +7,13 @@ namespace Interceptor.Attributes
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
     public class PacketAttribute : Attribute
     {
+        public ulong Hash { get; }
         public ushort Header { get; }
-        public ReadOnlyMemory<char> Hash { get; }
 
-        public PacketAttribute(ushort header)
+        public PacketAttribute(ulong hash = 0, ushort header = 0)
         {
+            Hash = hash;
             Header = header;
-        }
-
-        public PacketAttribute(string hash)
-        {
-            Hash = hash.AsMemory();
         }
     }
 }

@@ -125,20 +125,20 @@ namespace Interceptor
             if(!Packets.TryResolveHeader(typeof(T), out ushort header, outgoing))
                 throw new ArgumentException("Type T must have a PacketAttribute attribute.");
 
-            return (await WaitForInternalAsync(null, header, outgoing)).ToObject<T>();
+            return (await WaitForInternalAsync(0, header, outgoing)).ToObject<T>();
         }
 
-        public Task<Packet> WaitForIncomingAsync(ReadOnlyMemory<char> hash) => WaitForInternalAsync(hash, 0, false);
-        public Task<Packet> WaitForOutgoingAsync(ReadOnlyMemory<char> hash) => WaitForInternalAsync(hash, 0, true);
-        public Task<Packet> WaitForIncomingAsync(ushort header) => WaitForInternalAsync(null, header, false);
-        public Task<Packet> WaitForOutgoingAsync(ushort header) => WaitForInternalAsync(null, header, true);
+        public Task<Packet> WaitForIncomingAsync(ulong hash) => WaitForInternalAsync(hash, 0, false);
+        public Task<Packet> WaitForOutgoingAsync(ulong hash) => WaitForInternalAsync(hash, 0, true);
+        public Task<Packet> WaitForIncomingAsync(ushort header) => WaitForInternalAsync(0, header, false);
+        public Task<Packet> WaitForOutgoingAsync(ushort header) => WaitForInternalAsync(0, header, true);
 
-        internal async Task<Packet> WaitForInternalAsync(ReadOnlyMemory<char> hash, ushort header, bool outgoing)
+        internal async Task<Packet> WaitForInternalAsync(ulong hash, ushort header, bool outgoing)
         {
             TaskCompletionSource<Packet> result = new TaskCompletionSource<Packet>();
             Task attach(Packet packet)
             {
-                if ((!hash.IsEmpty && packet.Hash.Span.Equals(hash.Span, StringComparison.OrdinalIgnoreCase)) || (hash.IsEmpty && packet.Header == header))
+                if ((hash != 0 && packet.Hash == hash) || (hash == 0 && packet.Header == header))
                     result.SetResult(packet);
 
                 return Task.CompletedTask;
@@ -313,9 +313,9 @@ namespace Interceptor
 
                 if (!packet.Blocked && packet.Valid)
                 {
-                    if(packet.Header == 0 && !packet.Hash.IsEmpty)
+                    if(packet.Header == 0 && packet.Hash != 0)
                     {
-                        PacketInformation packetInfo = Packets.GetPacketInformation(packet.Hash.Span, outgoing);
+                        PacketInformation packetInfo = Packets.GetPacketInformation(packet.Hash, outgoing);
                         packet.Header = packetInfo.Id;
                     }
 

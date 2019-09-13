@@ -19,11 +19,11 @@ namespace Interceptor.Habbo
 
         private string ClientUrl { get; set; }
 
-        public PacketInformation GetPacketInformation(ReadOnlySpan<char> hash, bool outgoing)
+        public PacketInformation GetPacketInformation(ulong hash, bool outgoing)
         {
             PacketInformation[] packets = outgoing ? OutMessages : InMessages;
             for (int i = 0; i < packets.Length; i++)
-                if (packets[i].Hash.Span.Equals(hash, StringComparison.Ordinal))
+                if (packets[i].Hash == hash)
                     return packets[i];
 
             return default;
@@ -54,10 +54,10 @@ namespace Interceptor.Habbo
                     header = ushort.MaxValue;
                 else
                 {
-                    if (packetAttribute.Hash.IsEmpty)
+                    if (packetAttribute.Hash == 0)
                         header = packetAttribute.Header;
                     else
-                        header = GetPacketInformation(packetAttribute.Hash.Span, outgoing).Id;
+                        header = GetPacketInformation(packetAttribute.Hash, outgoing).Id;
                 }
 
                 _classHeaders.Add(type, header);

@@ -16,7 +16,7 @@ namespace Interceptor.Communication
         public ReadOnlyMemory<byte> Bytes => _bytes;
         public bool Blocked { get; set; }
         public bool Valid => Length == _bytes.Length;
-        public ReadOnlyMemory<char> Hash { get; internal set; }
+        public ulong Hash { get; internal set; }
         public PacketValue[] Structure { get; internal set; }
 
         private int _position;
@@ -84,23 +84,13 @@ namespace Interceptor.Communication
             _bytes = bytes.ToArray();
         }
 
-        public Packet(ReadOnlyMemory<char> hash)
+        public Packet(ulong hash = 0, ushort header = 0)
         {
             Hash = hash;
-        }
-
-        public Packet(ReadOnlyMemory<char> hash, int length) : this(hash)
-        {
-            _bytes = new byte[length];
-            Length = length;
-        }
-
-        public Packet(ushort header)
-        {
             Header = header;
         }
 
-        public Packet(ushort header, int length) : this(header)
+        public Packet(ulong hash, ushort header, int length) : this(hash, header)
         {
             _bytes = new byte[length];
             Length = length;
@@ -295,7 +285,7 @@ namespace Interceptor.Communication
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
-            if (!Hash.IsEmpty)
+            if (Hash != 0)
                 sb.Append('[').Append(Hash).Append(']');
             sb.Append("{l:").Append(Length).Append("}{h:").Append(Header).Append("}: ");
 
