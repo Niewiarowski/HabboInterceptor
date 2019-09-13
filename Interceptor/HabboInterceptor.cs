@@ -122,7 +122,7 @@ namespace Interceptor
 
         public async Task<T> WaitForAsync<T>(bool outgoing) where T : class
         {
-            if(!Packets.TryResolveHeader(typeof(T), out ushort header, outgoing))
+            if (!Packets.TryResolveHeader(typeof(T), out ushort header, outgoing))
                 throw new ArgumentException("Type T must have a PacketAttribute attribute.");
 
             return (await WaitForInternalAsync(0, header, outgoing)).ToObject<T>();
@@ -202,7 +202,18 @@ namespace Interceptor
 
         private Task OutgoingFiltering(Packet packet)
         {
-            return _outgoingFilters.FirstOrDefault(p => (p.Key.Predicate?.Invoke(packet)).Value).Value?.Invoke(packet) ?? Task.CompletedTask;
+            var result = _outgoingFilters.FirstOrDefault(p =>
+            {
+                if (p.Key.Predicate == null)
+                    return false;
+
+                return p.Key.Predicate(packet);
+            });
+
+            if (result.Value != null)
+                return result.Value.Invoke(packet) ?? Task.CompletedTask;
+
+            return Task.CompletedTask;
         }
 
         private readonly ConcurrentDictionary<(long CancellationId, Func<Packet, bool> Predicate), PacketEvent> _incomingFilters
@@ -254,8 +265,18 @@ namespace Interceptor
         }
         private Task IncomingFiltering(Packet packet)
         {
-            return _incomingFilters.FirstOrDefault(p => p.Key.Predicate?.Invoke(packet)
-                            ?? false).Value?.Invoke(packet) ?? Task.CompletedTask;
+            var result = _incomingFilters.FirstOrDefault(p =>
+            {
+                if (p.Key.Predicate == null)
+                    return false;
+
+                return p.Key.Predicate(packet);
+            });
+
+            if (result.Value != null)
+                return result.Value.Invoke(packet) ?? Task.CompletedTask;
+
+            return Task.CompletedTask;
         }
 
         public Task SendToServerAsync(Packet packet)
@@ -313,14 +334,14 @@ namespace Interceptor
 
                 if (!packet.Blocked && packet.Valid)
                 {
-                    if(packet.Header == 0 && packet.Hash != 0)
+                    if (packet.Header == 0 && packet.Hash != 0)
                     {
                         PacketInformation packetInfo = Packets.GetPacketInformation(packet.Hash, outgoing);
                         packet.Header = packetInfo.Id;
                     }
 
                     byte[] packetBytesArray = ArrayPool<byte>.Shared.Rent(packet.ConstructLength);
-                    Memory<byte> packetBytes = packetBytesArray.AsMemory().Slice(0, packet.ConstructLength); 
+                    Memory<byte> packetBytes = packetBytesArray.AsMemory().Slice(0, packet.ConstructLength);
                     packet.ConstructTo(packetBytes);
 
                     if (outgoing)
