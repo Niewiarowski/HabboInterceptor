@@ -211,7 +211,7 @@ namespace Interceptor
             });
 
             if (result.Value != null)
-                return result.Value.Invoke(packet) ?? Task.CompletedTask;
+                return result.Value(packet) ?? Task.CompletedTask;
 
             return Task.CompletedTask;
         }
@@ -274,7 +274,7 @@ namespace Interceptor
             });
 
             if (result.Value != null)
-                return result.Value.Invoke(packet) ?? Task.CompletedTask;
+                return result.Value(packet) ?? Task.CompletedTask;
 
             return Task.CompletedTask;
         }

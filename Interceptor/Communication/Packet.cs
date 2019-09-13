@@ -191,7 +191,7 @@ namespace Interceptor.Communication
             if (length != destination.Length)
                 return false;
 
-            Encoding.ASCII.GetBytes(destination, _bytes.Span.Slice(Position, length));
+            Encoding.ASCII.GetChars(_bytes.Span.Slice(Position, length), destination);
             Position += length;
 
             return true;
