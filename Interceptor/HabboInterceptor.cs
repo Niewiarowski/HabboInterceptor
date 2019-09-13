@@ -282,7 +282,7 @@ namespace Interceptor
             if (!Packets.TryResolveHeader(typeof(T), out ushort header, client == Server))
                 throw new ArgumentException("Argument \"packet\" must have a PacketAttribute attribute.");
 
-            Packet resultPacket = new Packet(header);
+            Packet resultPacket = new Packet(header: header);
             resultPacket.FromObject(packet);
             return SendInternalAsync(client, resultPacket, created);
         }
