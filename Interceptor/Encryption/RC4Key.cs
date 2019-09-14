@@ -56,14 +56,21 @@ namespace Interceptor.Encryption
         public void Cipher(Span<byte> buffer)
         {
             Span<byte> key = _key.Span;
-            for (int i = 0; i < buffer.Length; i++)
+            int length = buffer.Length;
+            for (int i = 0; i < length; i++)
             {
-                X++;
-                X %= 256;
-                Y += key[X];
-                Y %= 256;
-                (key[X], key[Y]) = (key[Y], key[X]);
-                buffer[i] = (byte)(buffer[i] ^ key[((key[X]) + (key[Y])) % 256]);
+                int x = (X + 1) % 256;
+                X = x;
+
+                byte newKeyY = key[x];
+                int y = (Y + newKeyY) % 256;
+                Y = y;
+
+                byte newKeyX = key[y];
+                key[x] = newKeyX;
+                key[y] = newKeyY;
+
+                buffer[i] = (byte)(buffer[i] ^ key[(newKeyX + newKeyY) % 256]);
             }
         }
 
