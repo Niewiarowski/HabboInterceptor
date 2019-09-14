@@ -43,7 +43,7 @@ namespace Interceptor.Memory
         public static RC4Key ExtractKey()
         {
             Process process = GetProcess();
-            if(process != null)
+            if (process != null)
             {
                 CurrentHandle = OpenProcess(0x0010 | 0x0008 | 0x0020, false, process.Id);
                 if (CurrentHandle != IntPtr.Zero)
@@ -102,6 +102,7 @@ namespace Interceptor.Memory
             {
                 ulong bytesRead = 0;
                 byte[] page = new byte[Math.Min(memoryPage.RegionSize, 1000000)];
+                Span<int> pageSpan = MemoryMarshal.Cast<byte, int>(page);
                 Span<byte> realKey = stackalloc byte[256];
                 Span<byte> repeats = stackalloc byte[256];
 
@@ -110,21 +111,21 @@ namespace Interceptor.Memory
                     if (ReadProcessMemory(CurrentHandle, (long)memoryPage.BaseAddress + (long)bytesRead, page, Math.Min((ulong)page.Length, memoryPage.RegionSize - bytesRead), out IntPtr numBytesRead))
                     {
                         bool validKey = false;
-                        for (int i = 0; i < page.Length - 1024; i += 4)
+                        for (int i = 0; i < pageSpan.Length - 256; i++)
                         {
-                            for (int k = 0; k < Math.Min(page.Length - i + k, 1024); k++)
+                            int maxK = i + 256;
+                            for (int kIndex = 0, k = i; k < maxK; k++, kIndex++)
                             {
-                                byte value = page[k + i];
-                                bool keyByte = k % 4 == 0;
-                                if ((!keyByte && value != 0) || (keyByte && repeats[value]++ > 3))
+                                int value = pageSpan[k];
+                                if (value > 255 || value < 0 || repeats[value]++ > 3)
                                 {
                                     repeats.Fill(0);
                                     validKey = false;
                                     break;
                                 }
-                                else if (keyByte)
+                                else
                                 {
-                                    realKey[k / 4] = value;
+                                    realKey[kIndex] = (byte)value;
                                     validKey = true;
                                 }
                             }
