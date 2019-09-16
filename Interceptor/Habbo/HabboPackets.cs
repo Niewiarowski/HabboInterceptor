@@ -75,7 +75,7 @@ namespace Interceptor.Habbo
 
             using WebClient wc = new WebClient();
             string swfUrl = string.Concat(clientUrl, "Habbo.swf");
-            await using Stream stream = await wc.OpenReadTaskAsync(swfUrl);
+            await using Stream stream = await wc.OpenReadTaskAsync(swfUrl).ConfigureAwait(false);
             using (HGame game = new HGame(stream))
             {
                 game.Disassemble();
