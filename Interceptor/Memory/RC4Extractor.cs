@@ -101,10 +101,10 @@ namespace Interceptor.Memory
             if (memoryPage.RegionSize > 1024 && memoryPage.RegionSize < 4000000 && memoryPage.Protect == 4 && memoryPage.Type == 131072 && memoryPage.AllocationProtect == 1)
             {
                 ulong bytesRead = 0;
+                int lastValue = -1;
                 byte[] page = new byte[Math.Min(memoryPage.RegionSize, 1000000)];
                 Span<int> pageSpan = MemoryMarshal.Cast<byte, int>(page);
                 Span<byte> realKey = stackalloc byte[256];
-                Span<byte> repeats = stackalloc byte[256];
 
                 do
                 {
@@ -117,14 +117,15 @@ namespace Interceptor.Memory
                             for (int kIndex = 0, k = i; k < maxK; k++, kIndex++)
                             {
                                 int value = pageSpan[k];
-                                if (value > 255 || value < 0 || repeats[value]++ > 3)
+                                if (value > 255 || value < 0 || (lastValue == 0 && value == 0))
                                 {
-                                    repeats.Fill(0);
+                                    lastValue = -1;
                                     validKey = false;
                                     break;
                                 }
                                 else
                                 {
+                                    lastValue = value;
                                     realKey[kIndex] = (byte)value;
                                     validKey = true;
                                 }
