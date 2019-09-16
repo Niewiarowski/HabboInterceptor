@@ -30,9 +30,11 @@ namespace Interceptor
         public bool PauseIncoming { get; set; }
         public bool PauseOutgoing { get; set; }
         public bool InterceptCreatedPackets { get; set; }
+        public bool WaitForDisassemble { get; set; } = true;
 
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
+
         private readonly Dictionary<string, int> Hotels = new Dictionary<string, int>
             {
                 {"game-es.habbo.com", 30000 },
@@ -390,7 +392,10 @@ namespace Interceptor
                                 if (!disassembledClient)
                                 {
                                     await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
-                                    await Packets.DisassembleAsync(packet.ReadString(4));
+                                    Task disassembleTask = Packets.DisassembleAsync(packet.ReadString(4));
+                                    if (WaitForDisassemble)
+                                        await disassembleTask;
+
                                     disassembledClient = true;
                                 }
 

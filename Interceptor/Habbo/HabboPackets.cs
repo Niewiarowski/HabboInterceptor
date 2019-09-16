@@ -68,7 +68,7 @@ namespace Interceptor.Habbo
 
         public async Task DisassembleAsync(string clientUrl)
         {
-            if (ClientUrl != null && ClientUrl != clientUrl)
+            if (ClientUrl != null && ClientUrl == clientUrl)
                 return;
 
             ClientUrl = clientUrl;
