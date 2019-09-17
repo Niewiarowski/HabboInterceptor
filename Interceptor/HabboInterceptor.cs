@@ -260,7 +260,7 @@ namespace Interceptor
             }, e);
         }
 
-        public void IncomingDetach(uint detachId)
+        public void IncomingDetach(long detachId)
         {
             ((long CancellationId, Func<Packet, bool> Predicate) key, PacketEvent _)
                 = _incomingFilters.FirstOrDefault(f => f.Key.CancellationId == detachId);
