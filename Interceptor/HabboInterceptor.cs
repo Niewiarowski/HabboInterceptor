@@ -31,6 +31,12 @@ namespace Interceptor
         public bool PauseOutgoing { get; set; }
         public bool InterceptCreatedPackets { get; set; }
         public bool WaitForDisassemble { get; set; } = true;
+        public bool CacheClient { get; set; } = true;
+        public HabboPackets.DisassembledCompletedEvent DisassembleCompleted
+        {
+            get => Packets.DisassembledCompleted;
+            set => Packets.DisassembledCompleted = value;
+        }
 
         private RC4Key DecipherKey { get; set; }
         private RC4Key CipherKey { get; set; }
@@ -392,7 +398,9 @@ namespace Interceptor
                                 if (!disassembledClient)
                                 {
                                     await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
-                                    Task disassembleTask = Packets.DisassembleAsync(packet.ReadString(4));
+
+                                    Task disassembleTask = Packets.DisassembleAsync(packet.ReadString(4), CacheClient);
+
                                     if (WaitForDisassemble)
                                         await disassembleTask;
 
