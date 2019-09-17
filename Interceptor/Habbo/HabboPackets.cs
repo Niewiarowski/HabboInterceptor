@@ -6,8 +6,8 @@ using System.Collections.Generic;
 
 using Flazzy.ABC;
 using Flazzy.Tags;
+
 using Interceptor.Attributes;
-using System.Net.Http;
 
 namespace Interceptor.Habbo
 {
