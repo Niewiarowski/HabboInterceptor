@@ -13,8 +13,8 @@ namespace Interceptor.Habbo
 {
     public class HabboPackets
     {
-        public delegate Task DisassembledCompletedEvent();
-        public DisassembledCompletedEvent DisassembledCompleted { get; set; }
+        public delegate Task DisassembleCompletedEvent();
+        public DisassembleCompletedEvent DisassembleCompleted { get; set; }
         public PacketInformation[] InMessages { get; } = new PacketInformation[4001];
         public PacketInformation[] OutMessages { get; } = new PacketInformation[4001];
 
@@ -114,7 +114,7 @@ namespace Interceptor.Habbo
 
             game.Disassemble();
             game.GenerateMessageHashes();
-            DisassembledCompleted?.Invoke();
+            DisassembleCompleted?.Invoke();
 
             foreach ((ushort id, HMessage message) in game.InMessages)
             {

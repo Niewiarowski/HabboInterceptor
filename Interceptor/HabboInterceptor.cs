@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net;
 using System.Linq;
+using System.Buffers;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -14,7 +15,6 @@ using Interceptor.Parsing;
 using Interceptor.Encryption;
 using Interceptor.Interception;
 using Interceptor.Communication;
-using System.Buffers;
 
 namespace Interceptor
 {
@@ -32,10 +32,10 @@ namespace Interceptor
         public bool InterceptCreatedPackets { get; set; }
         public bool WaitForDisassemble { get; set; } = true;
         public bool CacheClient { get; set; } = true;
-        public HabboPackets.DisassembledCompletedEvent DisassembleCompleted
+        public HabboPackets.DisassembleCompletedEvent DisassembleCompleted
         {
-            get => Packets.DisassembledCompleted;
-            set => Packets.DisassembledCompleted = value;
+            get => Packets.DisassembleCompleted;
+            set => Packets.DisassembleCompleted = value;
         }
 
         private RC4Key DecipherKey { get; set; }
