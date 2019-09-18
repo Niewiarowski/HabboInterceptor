@@ -398,7 +398,6 @@ namespace Interceptor
                                 if (!disassembledClient)
                                 {
                                     await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
-
                                     Task disassembleTask = Packets.DisassembleAsync(packet.ReadString(4), CacheClient);
 
                                     if (WaitForDisassemble)

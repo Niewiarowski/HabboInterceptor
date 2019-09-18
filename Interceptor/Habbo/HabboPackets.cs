@@ -8,6 +8,7 @@ using Flazzy.ABC;
 using Flazzy.Tags;
 
 using Interceptor.Attributes;
+using System.Runtime.InteropServices;
 
 namespace Interceptor.Habbo
 {
@@ -89,6 +90,9 @@ namespace Interceptor.Habbo
             Stream stream = null;
             using var wc = new WebClient();
             string swfUrl = string.Concat(clientUrl, "Habbo.swf");
+            bool createCache = false;
+            string version = null;
+            string filePath = null;
 
             if (!cacheClient)
             {
@@ -96,18 +100,24 @@ namespace Interceptor.Habbo
             }
             else
             {
-                string version = ClientUrl.Split("/")[4];
-                string filePath = string.Concat("Cache", $"/{version}.swf");
+                version = ClientUrl.Split("/")[4];
+                filePath = string.Concat("Cache", $"/{version}.swfd");
 
                 if (!File.Exists(filePath))
                 {
                     var directoryInfo = Directory.CreateDirectory("Cache");
                     foreach (var file in directoryInfo.GetFiles())
                         file.Delete();
-                    await wc.DownloadFileTaskAsync(new Uri(swfUrl), filePath).ConfigureAwait(false);
-                }
 
-                stream = File.OpenRead(filePath);
+                    stream = await wc.OpenReadTaskAsync(swfUrl).ConfigureAwait(false);
+                    createCache = true;
+                }
+                else
+                {
+                    ReadCache(filePath);
+                    DisassembleCompleted?.Invoke();
+                    return;
+                }
             }
 
             using HGame game = new HGame(stream);
@@ -159,7 +169,70 @@ namespace Interceptor.Habbo
             ((Dictionary<DoABCTag, ABCFile>)typeof(HGame).GetField("_abcFileTags", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(game)).Clear();
             game.ABCFiles.Clear();
 
+            if (createCache)
+                CreateCache(filePath);
+
             GC.Collect();
+        }
+
+        private void CreateCache(string filePath)
+        {
+            using Stream cacheStream = File.OpenWrite(filePath);
+            Span<byte> infoSpan = stackalloc byte[14];
+            Span<byte> testSpan = infoSpan.Slice(10);
+            Span<byte> testSpan2 = infoSpan.Slice(2);
+            Span<ushort> headerSpan = MemoryMarshal.Cast<byte, ushort>(infoSpan);
+            Span<ulong> hashSpan = MemoryMarshal.Cast<byte, ulong>(infoSpan.Slice(2));
+            Span<int> structureLengthSpan = MemoryMarshal.Cast<byte, int>(infoSpan.Slice(10));
+
+            for (int i = 0; i < 8000; i++)
+            {
+                PacketInformation packetInfo = i > 4000 ? OutMessages[i % 4001] : InMessages[i];
+                headerSpan[0] = packetInfo.Id;
+                hashSpan[0] = packetInfo.Hash;
+
+                if (packetInfo.Structure != null)
+                {
+                    structureLengthSpan[0] = packetInfo.Structure.Length;
+                    cacheStream.Write(infoSpan);
+
+                    for (int h = 0; h < packetInfo.Structure.Length; h++)
+                        cacheStream.WriteByte((byte)packetInfo.Structure[h]);
+                }
+                else
+                {
+                    structureLengthSpan[0] = 0;
+                    cacheStream.Write(infoSpan);
+                }
+            }
+        }
+
+        private void ReadCache(string filePath)
+        {
+            using Stream stream = File.OpenRead(filePath);
+            Span<byte> infoSpan = stackalloc byte[14];
+            Span<ushort> headerSpan = MemoryMarshal.Cast<byte, ushort>(infoSpan);
+            Span<ulong> hashSpan = MemoryMarshal.Cast<byte, ulong>(infoSpan.Slice(2));
+            Span<int> structureLengthSpan = MemoryMarshal.Cast<byte, int>(infoSpan.Slice(10));
+
+            for (int i = 0; i < 8000; i++)
+            {
+                PacketValue[] structure = null;
+
+                stream.Read(infoSpan);
+
+                int structureLength = structureLengthSpan[0];
+                if(structureLength > 0)
+                {
+                    structure = new PacketValue[structureLength];
+                    for (int h = 0; h < structureLength; h++)
+                        structure[h] = (PacketValue)stream.ReadByte();
+                }
+
+                bool outgoing = i > 4000;
+                PacketInformation[] messages = outgoing ? OutMessages : InMessages;
+                messages[outgoing ? i % 4001 : i] = new PacketInformation(headerSpan[0], hashSpan[0], structure);
+            }
         }
     }
 }

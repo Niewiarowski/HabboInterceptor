@@ -27,5 +27,12 @@ namespace Interceptor.Habbo
             Hash = MemoryMarshal.Cast<char, ulong>(hash.AsSpan())[0]; // ?? validate nulls, so... object ?? null <- is weird (if it's null, then set it null?)
             Structure = structure;
         }
+
+        public PacketInformation(ushort id, ulong hash, PacketValue[] structure = null)
+        {
+            Id = id;
+            Hash = hash;
+            Structure = structure;
+        }
     }
 }
