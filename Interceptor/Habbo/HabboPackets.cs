@@ -88,11 +88,10 @@ namespace Interceptor.Habbo
             ClientUrl = clientUrl;
 
             Stream stream = null;
-            using var wc = new WebClient();
-            string swfUrl = string.Concat(clientUrl, "Habbo.swf");
-            bool createCache = false;
-            string version = null;
             string filePath = null;
+            bool createCache = false;
+            using var wc = new WebClient();
+            string swfUrl = string.Concat(ClientUrl, "Habbo.swf");
 
             if (!cacheClient)
             {
@@ -100,15 +99,11 @@ namespace Interceptor.Habbo
             }
             else
             {
-                version = ClientUrl.Split("/")[4];
-                filePath = string.Concat("Cache", $"/{version}.swfd");
+                var version = ClientUrl.Split("/")[4];
+                filePath = string.Concat(Path.GetTempPath(), $"{version}.swfd");
 
                 if (!File.Exists(filePath))
                 {
-                    var directoryInfo = Directory.CreateDirectory("Cache");
-                    foreach (var file in directoryInfo.GetFiles())
-                        file.Delete();
-
                     stream = await wc.OpenReadTaskAsync(swfUrl).ConfigureAwait(false);
                     createCache = true;
                 }
@@ -124,7 +119,6 @@ namespace Interceptor.Habbo
 
             game.Disassemble();
             game.GenerateMessageHashes();
-            DisassembleCompleted?.Invoke();
 
             foreach ((ushort id, HMessage message) in game.InMessages)
             {
@@ -141,6 +135,8 @@ namespace Interceptor.Habbo
                 message.Parser = null;
                 message.References.Clear();
             }
+
+            DisassembleCompleted?.Invoke();
 
             foreach (ABCFile abc in game.ABCFiles)
             {
@@ -179,8 +175,6 @@ namespace Interceptor.Habbo
         {
             using Stream cacheStream = File.OpenWrite(filePath);
             Span<byte> infoSpan = stackalloc byte[14];
-            Span<byte> testSpan = infoSpan.Slice(10);
-            Span<byte> testSpan2 = infoSpan.Slice(2);
             Span<ushort> headerSpan = MemoryMarshal.Cast<byte, ushort>(infoSpan);
             Span<ulong> hashSpan = MemoryMarshal.Cast<byte, ulong>(infoSpan.Slice(2));
             Span<int> structureLengthSpan = MemoryMarshal.Cast<byte, int>(infoSpan.Slice(10));
