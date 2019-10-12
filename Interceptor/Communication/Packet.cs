@@ -45,13 +45,13 @@ namespace Interceptor.Communication
                     headerSlice.Reverse();
                 }
 
-                Length = BitConverter.ToInt32(lengthSlice) - 2;
+                Length = MemoryMarshal.Read<int>(lengthSlice) - 2;
                 if (Length < 0 || Length > 100000)
                 {
                     remainderIndex = -2;
                     return;
                 }
-                Header = BitConverter.ToUInt16(headerSlice);
+                Header = MemoryMarshal.Read<ushort>(headerSlice);
                 _bytes = bytes.Slice(6 + index, Length).ToArray();
                 if (bytes.Length > index + ConstructLength)
                     remainderIndex = index + ConstructLength;
@@ -71,7 +71,7 @@ namespace Interceptor.Communication
                 bytes.Slice(0, 2).CopyTo(header);
                 if (BitConverter.IsLittleEndian)
                     header.Reverse();
-                Header = BitConverter.ToUInt16(header);
+                Header = MemoryMarshal.Read<ushort>(header);
 
                 _bytes = bytes.Slice(2).ToArray();
             }
@@ -114,8 +114,11 @@ namespace Interceptor.Communication
             Span<byte> lengthSlice = finalPacket.Slice(0, 4);
             Span<byte> headerSlice = finalPacket.Slice(4, 2);
             Span<byte> payloadSlice = finalPacket.Slice(6);
-            BitConverter.TryWriteBytes(lengthSlice, Length + 2);
-            BitConverter.TryWriteBytes(headerSlice, Header);
+
+            int finalLength = Length + 2;
+            int header = Header;
+            MemoryMarshal.Write(lengthSlice, ref finalLength);
+            MemoryMarshal.Write(headerSlice, ref header);
             _bytes.Span.CopyTo(payloadSlice);
 
             if (BitConverter.IsLittleEndian)
