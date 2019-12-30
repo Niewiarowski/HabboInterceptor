@@ -116,7 +116,7 @@ namespace Interceptor.Communication
             Span<byte> payloadSlice = finalPacket.Slice(6);
 
             int finalLength = Length + 2;
-            int header = Header;
+            ushort header = Header;
             MemoryMarshal.Write(lengthSlice, ref finalLength);
             MemoryMarshal.Write(headerSlice, ref header);
             _bytes.Span.CopyTo(payloadSlice);
