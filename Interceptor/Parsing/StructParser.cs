@@ -131,7 +131,7 @@ namespace Interceptor.Parsing
 
                 string generateWrite(string value, Type type)
                 {
-                    if (propType.IsClass)
+                    if (propType.IsClass && type != typeof(byte))
                         return string.Format("Packet.FromObject<{0}>({1}, false);\n", type.GetCleanFullName(), value);
                     else
                         return string.Format("Packet.Write<{0}>({1});\n", type.GetCleanFullName(), value);
