@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <Description>A library for intercepting and manipulating Habbo packets.</Description>
     <Authors>Niewiarowski</Authors>
     <PackageProjectUrl>https://github.com/Niewiarowski/HabboInterceptor</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Niewiarowski/HabboInterceptor</RepositoryUrl>
     <PackageTags>habbo, interceptor</PackageTags>
     <PackageId>HabboInterceptor</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
