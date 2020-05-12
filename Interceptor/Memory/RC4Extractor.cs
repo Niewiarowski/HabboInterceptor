@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using Interceptor.Encryption;
+using System.Security.Cryptography;
 
 namespace Interceptor.Memory
 {
@@ -39,8 +40,8 @@ namespace Interceptor.Memory
 
         private static IntPtr CurrentHandle { get; set; }
 
-        public static bool TryExtractKey(out RC4Key key) => (key = ExtractKey()) != null;
-        public static RC4Key ExtractKey()
+        public static bool TryExtractKey(out RC4Key[] key) => (key = ExtractKey()).Length != 0;
+        public static RC4Key[] ExtractKey()
         {
             Process process = GetProcess();
             if (process != null)
@@ -48,16 +49,19 @@ namespace Interceptor.Memory
                 CurrentHandle = OpenProcess(0x0010 | 0x0008 | 0x0020, false, process.Id);
                 if (CurrentHandle != IntPtr.Zero)
                 {
-                    Memory<byte> rc4Key = default;
+                    List<RC4Key> keys = new List<RC4Key>(2);
+
                     foreach (MemoryPage page in GetMemoryPages())
                     {
-                        rc4Key = FindRC4Key(page);
-                        if (!rc4Key.IsEmpty)
-                            break;
+                        List<Memory<byte>> potentialKeyBytes = FindRC4Key(page);
+                        if (potentialKeyBytes != null)
+                            foreach (Memory<byte> rc4Key in potentialKeyBytes)
+                                if (!rc4Key.IsEmpty)
+                                    keys.Add(RC4Key.Copy(rc4Key.Span));
                     }
 
                     CloseHandle(CurrentHandle);
-                    return rc4Key.IsEmpty ? null : RC4Key.Copy(rc4Key.Span);
+                    return keys.ToArray();
                 }
             }
 
@@ -96,7 +100,7 @@ namespace Interceptor.Memory
             while (address <= 0x00007fffffffffff);
         }
 
-        private static Memory<byte> FindRC4Key(MemoryPage memoryPage)
+        private static List<Memory<byte>> FindRC4Key(MemoryPage memoryPage)
         {
             if (memoryPage.RegionSize > 1024 && memoryPage.RegionSize < 4000000 && memoryPage.Protect == 4 && memoryPage.Type == 131072 && memoryPage.AllocationProtect == 1)
             {
@@ -105,6 +109,8 @@ namespace Interceptor.Memory
                 byte[] page = new byte[Math.Min(memoryPage.RegionSize, 1000000)];
                 Span<int> pageSpan = MemoryMarshal.Cast<byte, int>(page);
                 Span<byte> realKey = stackalloc byte[256];
+
+                List<Memory<byte>> keys = new List<Memory<byte>>();
 
                 do
                 {
@@ -117,7 +123,7 @@ namespace Interceptor.Memory
                             for (int kIndex = 0, k = i; k < maxK; k++, kIndex++)
                             {
                                 int value = pageSpan[k];
-                                if (value > 255 || value < 0 || (lastValue == 0 && value == 0))
+                                if (value > 255 || value < 0 || (lastValue == 0 && (value == 0 || value == 1)))
                                 {
                                     lastValue = -1;
                                     validKey = false;
@@ -132,14 +138,17 @@ namespace Interceptor.Memory
                             }
 
                             if (validKey)
-                                return realKey.ToArray();
+                                keys.Add(realKey.ToArray());
                         }
                     }
 
                     bytesRead += (ulong)numBytesRead;
                 }
                 while (bytesRead < memoryPage.RegionSize);
+
+                return keys;
             }
+
 
             return null;
         }

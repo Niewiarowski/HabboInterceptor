@@ -368,50 +368,58 @@ namespace Interceptor
             Memory<byte> buffer = new byte[1024];
             int decipherBytesRead = await Client.GetStream().ReadAsync(buffer);
 
-            if (RC4Extractor.TryExtractKey(out RC4Key key))
+            if (RC4Extractor.TryExtractKey(out RC4Key[] keys))
             {
-                await LogInternalAsync(new LogMessage(LogSeverity.Info, $"RC4: {key}"));
                 Memory<byte> decipherBuffer = new byte[decipherBytesRead];
 
-                for (int i = 0; i < 256; i++)
-                {
-                    for (int j = 0; j < 256; j++)
+                for(int x = 0; x < keys.Length; x++) {
+                    RC4Key key = keys[x];
+
+                    try
                     {
-                        RC4Key tempKey = key.Copy(i, j);
-                        tempKey.Reverse(decipherBytesRead);
-                        if (tempKey.X == 0 && tempKey.Y == 0)
+                        for (int i = 0; i < 256; i++)
                         {
-                            buffer.Slice(0, decipherBytesRead).CopyTo(decipherBuffer);
-                            RC4Key possibleDecipherKey = tempKey.Copy();
-                            possibleDecipherKey.Cipher(decipherBuffer);
-
-                            IReadOnlyCollection<Packet> packets = Packet.Parse(decipherBuffer);
-                            if (packets.Count == 0)
-                                continue;
-
-                            CipherKey = tempKey;
-                            DecipherKey = possibleDecipherKey;
-
-                            bool disassembledClient = false;
-                            foreach (Packet packet in packets)
+                            for (int j = 0; j < 256; j++)
                             {
-                                if (!disassembledClient)
+                                RC4Key tempKey = key.Copy(i, j);
+                                tempKey.Reverse(decipherBytesRead);
+                                if (tempKey.X == 0 && tempKey.Y == 0)
                                 {
-                                    await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
-                                    Task disassembleTask = Packets.DisassembleAsync(packet.ReadString(4), CacheClient);
+                                    buffer.Slice(0, decipherBytesRead).CopyTo(decipherBuffer);
+                                    RC4Key possibleDecipherKey = tempKey.Copy();
+                                    possibleDecipherKey.Cipher(decipherBuffer);
 
-                                    if (WaitForDisassemble)
-                                        await disassembleTask;
+                                    IReadOnlyCollection<Packet> packets = Packet.Parse(decipherBuffer);
+                                    if (packets.Count == 0)
+                                        continue;
 
-                                    disassembledClient = true;
+                                    CipherKey = tempKey;
+                                    DecipherKey = possibleDecipherKey;
+
+                                    bool disassembledClient = false;
+                                    foreach (Packet packet in packets)
+                                    {
+                                        if (!disassembledClient)
+                                        {
+                                            await LogInternalAsync(new LogMessage(LogSeverity.Info, "Disassembling SWF."));
+                                            Task disassembleTask = Packets.DisassembleAsync(packet.ReadString(4), CacheClient);
+
+                                            if (WaitForDisassemble)
+                                                await disassembleTask;
+
+                                            disassembledClient = true;
+                                        }
+
+                                        await SendInternalAsync(Server, packet);
+                                    }
+
+                                    await LogInternalAsync(new LogMessage(LogSeverity.Info, $"RC4: {key}"));
+                                    return;
                                 }
-
-                                await SendInternalAsync(Server, packet);
                             }
-
-                            return;
                         }
                     }
+                    catch { }
                 }
             }
             else await LogInternalAsync(new LogMessage(LogSeverity.Error, "Could not find RC4 key."));
