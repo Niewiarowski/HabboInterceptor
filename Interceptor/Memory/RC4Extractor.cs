@@ -100,6 +100,26 @@ namespace Interceptor.Memory
             while (address <= 0x00007fffffffffff);
         }
 
+        private static double Entropy(Span<byte> data)
+        {
+            Span<int> values = stackalloc int[256];
+
+            for (int i = data.Length; --i >= 0;)
+                values[data[i]]++;
+
+            double H = 0.0;
+            double cb = data.Length;
+            for(int i = 256; --i >= 0;)
+            {
+                int value = values[i];
+                if (value > 0)
+                    H += value * Math.Log(value / cb, 2.0);
+            }
+
+            return -H / cb;
+        }
+
+
         private static List<Memory<byte>> FindRC4Key(MemoryPage memoryPage)
         {
             if (memoryPage.RegionSize > 1024 && memoryPage.RegionSize < 4000000 && memoryPage.Protect == 4 && memoryPage.Type == 131072 && memoryPage.AllocationProtect == 1)
@@ -137,7 +157,7 @@ namespace Interceptor.Memory
                                 }
                             }
 
-                            if (validKey)
+                            if (validKey && Entropy(realKey) > 7)
                                 keys.Add(realKey.ToArray());
                         }
                     }
