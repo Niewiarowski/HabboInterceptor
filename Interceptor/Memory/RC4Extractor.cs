@@ -122,7 +122,7 @@ namespace Interceptor.Memory
 
         private static List<Memory<byte>> FindRC4Key(MemoryPage memoryPage)
         {
-            if (memoryPage.RegionSize > 1024 && memoryPage.RegionSize < 4000000 && memoryPage.Protect == 4 && memoryPage.Type == 131072 && memoryPage.AllocationProtect == 1)
+            if (memoryPage.RegionSize > 1024 && memoryPage.Protect == 4 && memoryPage.Type == 131072 && memoryPage.AllocationProtect == 1)
             {
                 ulong bytesRead = 0;
                 int lastValue = -1;
